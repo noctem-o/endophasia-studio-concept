@@ -1,51 +1,61 @@
-# Endophasia — design direction (draft for review)
+# Endophasia — design direction
 
 ## Thesis
 
-Endophasia is an instrument for deciding **how much a record can be trusted**. The interface's job is to make the
-epistemic status of every mark legible before its content is. Today it does not: one hue means five unrelated things
-(teal is *observed evidence*, an *ok* status, the *tool* category, an *admitted* capability, an *exact* match and the
-*selection* accent), so colour cannot be trusted as a signal.
+Endophasia is an instrument for deciding **how much a record can be trusted**. The interface's job is to make the epistemic status
+of every mark legible before its content is. The prototype did not do this: one hue meant five unrelated things (teal was *observed
+evidence*, an *ok* status, the *tool* category, an *admitted* capability, an *exact* match and the *selection* accent), so colour
+could not be trusted as a signal.
 
-Direction: **a quiet specimen-cabinet instrument.** Warm graphite surfaces, ivory type, one serif voice for titles and
-captions (the register of a lab notebook / journal figure), mono for identifiers and recorded values. Colour is a
-scarce resource that is spent on exactly one thing: **evidence provenance**. Everything else is carried by form.
+Direction: **a quiet specimen-cabinet instrument.** Warm graphite surfaces, ivory type, mono for identifiers and recorded values,
+and a serif voice used sparingly — the wordmark, session and dossier titles, the lab title — in the register of a lab notebook.
+Colour is a scarce resource.
 
 ## The epistemic grammar (shared by every workspace)
 
 | Channel | Carries | Never carries |
 | --- | --- | --- |
-| **Hue** | Provenance class only: OBS teal, REP blue, DER violet, N/A slate. Plus *attention* (amber = degraded / partial / differs) and *fault* (red = error / mismatch) | category, selection, "ok", identity |
-| **Texture** | Epistemic status: **solid = recorded**, dashed = proposed / derived, hatched = simulated or synthetic, hollow = unavailable | meaning that hue already says |
-| **Position** | Category (swimlanes), storage order, side (A / B) | |
-| **Ivory (neutral)** | Selection and focus — no hue, so selecting something never changes what it appears to be | |
+| **Hue: provenance** | OBS teal, REP blue, DER violet, N/A slate | category, selection, "ok", identity |
+| **Hue: attention / fault** | amber = degraded, partial, differs; red = error, mismatch, rejection | success |
+| **Hue: structure (lineage graph only)** | sage = replay; violet = simulated projection (the scene marks it derived); neutral greys for the other relations | evidence |
+| **Texture** | solid = recorded, dashed = proposed, hatched = simulated or synthetic, hollow = unavailable | meaning that hue already says |
+| **Shape** | every provenance class has its own: ● ◐ ◆ ◌ | |
+| **Position** | category (swimlanes), storage order, side (A / B) | |
+| **Ivory (neutral)** | selection and focus — never a hue, so selecting something never changes what it looks like | |
 
-Consequences: "ok" is not coloured (health is the default, deviation is what is marked); a proposed correspondence is a
-dashed violet link, never the colour of an exact match; a simulated projection is hatched, never the colour or weight of a
-trial result; **SYNTHETIC DATA** is a hatched tag in neutral ivory, not an evidence colour.
+"Only provenance gets hue" is therefore not literally true, and this table says what is. Consequences:
+
+- "ok" is not coloured: health is the default, and deviation is what is marked.
+- A proposed correspondence is a dashed link, **not** a provenance colour: exact and proposed are outputs of the same declared
+  method, so painting one violet would assert a provenance difference the method does not make. The three link kinds differ by form.
+- A simulated projection is hatched and hollow, never the weight or colour of a trial.
+- `SYNTHETIC DATA` is a hatched neutral tag — texture, not an evidence hue.
+- A "declared" or "observed" mark is drawn only when evidence of that class backs it.
+- Pass rates are intervals with the denominator beside them; a missing result is hatched, never an empty bar.
+
+## Constraints from the renderers
+
+The default lineage backend is WebGL. Its per-node channels are a fill, a stroke and a selected flag, and it draws every edge
+solid, so the lineage encoding was designed from WebGL outward: node paint is one pure function (`nodePaint`) used by both
+backends, hollow means a see-through fill, and relations differ by colour (held to a perceptual floor, OKLab ΔE ≥ 0.08), with dashes
+as an SVG-only extra. Neither backend's resource management, coordinate transforms or measurement code was changed.
 
 ## Structure
 
-- **Shell**: one thin chassis. Brand mark (three lanes, echoing the ribbon), workspace tabs with `1`–`4` keys, a persistent
-  `read-only` lock and a hatched `SYNTHETIC DATA` tag, and a status bar that always states what is selected and that nothing
-  is connected to a runtime.
-- **Observe**: the trajectory becomes a swimlane **overview** (lanes by category, storage order on x, provenance on the mark,
-  error ring, intervention dashes) sitting directly above the **detail** table, linked both ways, with a scroll window
-  bracket showing which part of the trajectory the table is showing. Filters dim, they do not delete: a filtered trajectory
-  is still seen in context. The inspector opens on a *session brief*, not an empty state.
-- **Compare**: a correspondence map (A | links | B) in each trajectory's own storage order. Exact = solid link, proposed =
-  dashed, unmatched = open stub with no link. Differences (status, evidence class, compared fields) are marked on the link
-  without any "match score". The methodology is always one click away and the map says what it cannot establish.
-- **Capabilities**: a matrix — declared (REP) against observed (OBS) with exercised positions plotted along the trajectory —
-  and a source ledger whose conditions filter the matrix through the evidence that cites them.
-- **Evolve** (Counterfactual Laboratory): one lab with four sections (Lineage, Experiments, Candidates, Checkpoints) and a
-  record inspector. Selecting a node no longer navigates away from the graph. The lineage renderer sits inside the same
-  chrome: its toolbar is the legend, nodes use the provenance grammar, and recorded / replay / continuation / simulated are
-  four visibly different things. Pass rates are Wilson interval bars with their denominators; missing is hatched, never an
-  empty bar. Promotion is a row of separate gates, not a pipeline arrow.
+- **Shell** — brand mark, workspace buttons with `1`–`4`, a read-only lock, the hatched `SYNTHETIC DATA` tag, a keyboard sheet, and a
+  status bar that names the selection.
+- **Observe** — a swimlane overview above a detail table, linked both ways; filters dim in the overview and hide in the table; the
+  inspector leads with evidence and opens on a session brief.
+- **Compare** — a correspondence map in each trajectory's own order; the method is the inspector's resting state.
+- **Capabilities** — a matrix of declared against observed, with a source ledger that filters it.
+- **Evolve** — one lab (Lineage, Experiments, Candidates, Checkpoints); selecting never leaves the graph; promotion is eight
+  separate gates, not a pipeline.
 
-## Out of scope / preserved
+## Known limits
 
-All data stays synthetic and labelled; the app stays read-only; scene schemas, renderer adapters, the coordinate
-convention, WebGL resource management and the measurement harness are not rewritten (palette constants and node *styling*
-only).
+- The WebGL node shader draws a thicker border at the left and right than at the top and bottom (`ring` is a fraction of the node
+  size). It is unchanged: shader work was out of scope.
+- WebGL was verified only under a software rasteriser. Under tritanopia the WebGL relation lines are weak (evaluated-against and
+  replay are both pale cyan-greens); the key, the toggles and the inspector name each relation.
+- Below 1024px the inspectors are drawers; the overview and the Compare map are designed for desktop and laptop widths.
+- The lineage layout (layered longest-path) is the scene's declared algorithm and is unchanged, so long edges still cross.

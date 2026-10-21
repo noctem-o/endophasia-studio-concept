@@ -4,6 +4,11 @@ Phase IV brief requires an honest comparison of SVG, Sigma.js+Graphology,
 PixiJS, and Three.js/WebGPU at 100 / 1,000 / 10,000 nodes. This document
 separates three claim strengths. **Nothing here is invented.**
 
+> **Correction (design pass).** Before this branch the SVG backend never attached its `<svg>` to the host, so it drew nothing in a
+> real browser, and its measured `setScene`/`setViewport` costs were the cost of building a **detached** DOM. They are not
+> comparable with measurements taken after the fix, which include insertion into the live document. Re-run the measurement pass
+> before quoting any SVG figure. The WebGL path is unchanged.
+
 ## 1. Actually measured in this repo (you can reproduce it)
 
 The in-app diagnostics panel ("run measurement pass on all scenes") measures,

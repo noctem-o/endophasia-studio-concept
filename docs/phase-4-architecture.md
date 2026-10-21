@@ -155,6 +155,12 @@ numbers are invented anywhere in the app or docs.
 > `eslint.config.js` was invalid for ESLint 9 (`plugins`/`rules` nested inside `languageOptions`), and eight unreachable prototype
 > components failed `tsc`. All three were repaired in the design-pass branch; see `docs/design-direction.md`.
 
+> Correction (design pass), renderers: the `svg-dom` backend built its `<svg>` in `mount()` but never attached it to the host element,
+> so it drew nothing in a real browser (it was the fallback when WebGL2 is unavailable, and the "reference implementation"). The
+> jsdom tests never inspected the host's contents. It now attaches (`svgRenderer.test.ts` checks the DOM). Consequence for
+> measurements: any `svg-dom` timing taken before this fix measured building a *detached* DOM (no insertion, layout or paint), so it
+> is not comparable with a timing taken now. No WebGL, coordinate-transform or measurement code was changed.
+
 All commands were actually run on this tree (Phase IV completion state):
 
 - `npm run typecheck` — 0 errors
