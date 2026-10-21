@@ -95,12 +95,14 @@ function ColumnHeader({ session, side }: { session: Session; side: 'A' | 'B' }) 
   return (
     <div className="mb-2 min-w-0 rounded-panel border border-line bg-surface-1 px-3 py-2.5 shadow-inset">
       <div className="flex items-center gap-2">
-        <span className="grid h-5 w-5 place-items-center rounded-tag border border-line-strong font-mono text-2xs font-semibold text-fg-1">{side}</span>
-        <span className="font-mono text-xs font-medium text-fg-1">{session.id}</span>
-        <span className={`ml-auto rounded-tag border px-1.5 font-mono text-2xs tracking-wider ${st.text} ${st.border} ${st.bg}`}>{st.label}</span>
+        <span className="grid h-5 w-5 shrink-0 place-items-center rounded-tag border border-line-strong font-mono text-2xs font-semibold text-fg-1">{side}</span>
+        <span className="truncate font-mono text-xs font-medium text-fg-1">{session.id}</span>
       </div>
       <div className="mt-1 truncate text-xs text-fg-2">{session.label}</div>
-      <div className="mt-0.5 font-mono text-2xs text-fg-3 tnum">{session.events.length} events · {(session.durationMs / 1000).toFixed(1)} s</div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="font-mono text-2xs text-fg-3 tnum">{session.events.length} events · {(session.durationMs / 1000).toFixed(1)} s</span>
+        <span className={`rounded-tag border px-1.5 font-mono text-2xs tracking-wider ${st.text} ${st.border} ${st.bg}`}>{st.label}</span>
+      </div>
     </div>
   );
 }
@@ -133,7 +135,7 @@ function Column({ session, side, byEvent, selectedIndex, hoverIndex, focusClass,
   };
 
   return (
-    <ul aria-label={`Trajectory ${side}: ${session.id}`} onKeyDown={onKeyDown} className="min-w-0">
+    <ul aria-label={`Events of trajectory ${side}: ${session.id}`} onKeyDown={onKeyDown} className="min-w-0">
       {events.map((e) => {
         const link = byEvent.get(e.id);
         return (

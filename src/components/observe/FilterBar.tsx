@@ -40,7 +40,7 @@ export function FilterBar({ filters, onChange, onReset, shown, total, categoryCo
           const Icon = m.icon;
           return (
             <Chip key={c} active={filters.categories.has(c)} onClick={() => onChange({ ...filters, categories: toggle(filters.categories, c) })} title={`${m.name} events`} leading={<Icon className="h-3 w-3" aria-hidden />}>
-              {m.name}{count(categoryCounts[c])}
+              <span className="hidden xl:inline">{m.name}</span><span className="sr-only xl:hidden">{m.name}</span>{count(categoryCounts[c])}
             </Chip>
           );
         })}

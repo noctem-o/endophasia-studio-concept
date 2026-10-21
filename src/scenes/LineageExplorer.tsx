@@ -6,7 +6,7 @@ import { createRenderer, isBackendAvailable, type BackendId } from './renderers'
 import type { LineageRenderer } from './renderers/types';
 import { measureFps, measureRenderer, type MeasurementBlock } from './renderers/measure';
 import {
-  clampScale, filteredVisibleNodes, fitViewport, focusSetOf, initialInteraction, lodTier, navOrder, type InteractionState,
+  clampScale, filteredVisibleNodes, focusSetOf, initialInteraction, lodTier, navOrder, sceneBounds, type InteractionState,
 } from './interaction';
 import { CLASSIFICATION_TAG, PROVENANCE_BADGE } from './renderers/palette';
 import { makeHeatmapPoc } from './heatmapPoc';
@@ -28,6 +28,17 @@ import { ProvMark } from '@/ui/marks';
  * never navigates away from the graph. `onOpenNode` is the explicit "open this record" action and is retained for callers that
  * want it.
  */
+
+/**
+ * Fit the whole graph with breathing room, and let a small graph grow past 100% on a large canvas (the shared fit helper caps at
+ * 1, which leaves a 13-node graph adrift on a wide screen). Same convention as everything else: screen = world * scale + offset,
+ * and the result always contains the scene, because it never exceeds the scale at which the scene exactly fits.
+ */
+function fitComfortably(scene: LineageScene, viewW: number, viewH: number): Viewport {
+  const b = sceneBounds(scene);
+  const scale = clampScale(Math.min(1.5, (Math.min(viewW / b.width, viewH / b.height)) * 0.94));
+  return { scale, x: (viewW - b.width * scale) / 2, y: (viewH - b.height * scale) / 2 };
+}
 
 const PROV_KIND: Record<string, EvidenceKind> = { observed: 'OBS', reported: 'REP', derived: 'DER', 'not-applicable': 'NA' };
 
@@ -68,7 +79,8 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
   const [measurements, setMeasurements] = useState<MeasurementBlock[]>([]);
   const [fps, setFps] = useState<{ median: number; min: number } | null | 'unmeasured'>('unmeasured');
   const [showDiagnostics, setShowDiagnostics] = useState(false);
-  const [keyOpen, setKeyOpen] = useState(true);
+  // The key opens by default only where the canvas is wide enough that it cannot cover the graph; the user's choice wins.
+  const [keyPref, setKeyPref] = useState<boolean | null>(null);
   const [size, setSize] = useState({ w: 800, h: 600 });
 
   const scene = useMemo(() => scenes.find((s) => s.id === sceneId) ?? scenes[0], [scenes, sceneId]);
@@ -137,7 +149,7 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
       if (needsFitRef.current && r.width > 1 && r.height > 1 && sceneRef.current) {
         needsFitRef.current = false;
         const { w, h } = viewSizeRef.current;
-        setInteraction((s) => ({ ...s, viewport: fitViewport(sceneRef.current!.scene, w, h) }));
+        setInteraction((s) => ({ ...s, viewport: fitComfortably(sceneRef.current!.scene, w, h) }));
       }
     });
     ro.observe(host);
@@ -196,7 +208,7 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
 
   const fitToScene = useCallback(() => {
     if (!scene) return;
-    setInteraction((s) => ({ ...s, viewport: fitViewport(scene.scene, viewSizeRef.current.w, viewSizeRef.current.h) }));
+    setInteraction((s) => ({ ...s, viewport: fitComfortably(scene.scene, viewSizeRef.current.w, viewSizeRef.current.h) }));
   }, [scene]);
 
   const centerOn = useCallback((nodeId: string) => {
@@ -254,7 +266,7 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
     } else if (e.key === 'f' && interaction.selection) {
       setInteraction((s) => ({ ...s, focus: s.focus ? null : focusSetOf(scene.scene, s.selection!) }));
     } else if (e.key === '0') {
-      if (scene) setInteraction((s) => ({ ...s, viewport: fitViewport(scene.scene, viewSizeRef.current.w, viewSizeRef.current.h) }));
+      if (scene) setInteraction((s) => ({ ...s, viewport: fitComfortably(scene.scene, viewSizeRef.current.w, viewSizeRef.current.h) }));
     } else if (e.key === 'Escape' && (interaction.selection || interaction.focus)) {
       e.preventDefault();
       setInteraction((s) => ({ ...s, focus: null }));
@@ -383,7 +395,7 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
             <Button onClick={fitToScene} leading={<Maximize2 className="h-3 w-3" aria-hidden />} title="Fit the whole graph (0)">fit</Button>
           </div>
           <div className="pointer-events-auto">
-            <ExplorerKey open={keyOpen} onToggle={() => setKeyOpen((o) => !o)} hidden={interaction.hiddenRelations} onToggleRelation={toggleRelation} backend={backend} />
+            <ExplorerKey open={keyPref ?? size.w >= 1000} onToggle={() => setKeyPref((p) => !(p ?? size.w >= 1000))} hidden={interaction.hiddenRelations} onToggleRelation={toggleRelation} backend={backend} />
           </div>
         </div>
 
@@ -443,7 +455,7 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
           <option value="svg-dom">SVG (DOM)</option>
         </select>
         <Button onClick={() => setShowDiagnostics((v) => !v)} active={showDiagnostics} leading={<Gauge className="h-3 w-3" aria-hidden />}>diagnostics</Button>
-        <span className="ml-auto font-mono text-2xs text-fg-3 tnum">
+        <span className="ml-auto whitespace-nowrap font-mono text-2xs text-fg-3 tnum">
           {visible.size}/{scene.scene.nodes.length} nodes · LOD {lod} · {Math.round(vp.scale * 100)}%
         </span>
       </div>
