@@ -1,6 +1,7 @@
 import type { LineageScene } from '../types';
 import type { CreateRendererResult, LineageRenderer, RendererEventHandlers, RendererInfo, Viewport } from './types';
 import { hexToRgba, RAW, RELATION_STYLE_HEX, CLASSIFICATION_TAG } from './palette';
+import { worldFromScreen } from '../interaction';
 
 /**
  * Hand-rolled WebGL2 instanced backend.
@@ -11,8 +12,15 @@ import { hexToRgba, RAW, RELATION_STYLE_HEX, CLASSIFICATION_TAG } from './palett
  * - Text is NOT drawn in WebGL: glyphs go to a screen-space DOM overlay,
  *   culled to the viewport, so the honest cost split stays visible and the
  *   benchmark measures it separately.
- * - Selection/highlight/viewport are pushed in as data; the GPU holds no
- *   interaction state.
+ * - Selection/highlight are per-instance colors updated in-place over a
+ *   small buffer range — geometry is never rebuilt for interaction state.
+ * - Every buffer, VAO, and program is tracked and deleted on scene swap and
+ *   destroy; context loss releases everything through the loss handler.
+ *
+ * Camera convention (identical to SVG backend and CPU hit-testing):
+ *   screen = world * scale + offset — in CSS pixels. The drawing buffer is
+ * DPR × CSS size; uResolution is the buffer size, and mouse positions (CSS
+ * px) are converted to buffer pixels with the same DPR before mapping.
  */
 
 const NODE_W = 178;
@@ -21,7 +29,21 @@ const COL_GAP = 250;
 const ROW_GAP = 62;
 const MARGIN = 20;
 
+// Shared GLSL camera: world→screen follows the documented convention
+// screen = world * scale + offset; screen→clip flips Y because GL clip space
+// has +Y up while screen space has +Y down. Identical mapping to the SVG
+// backend's translate+scale group transform and the CPU hit-test.
+const GLSL_CAMERA = `
+vec2 worldToScreen(vec2 world, vec2 offset, float scale) {
+  return world * scale + offset;
+}
+vec2 screenToClip(vec2 screen, vec2 resolution) {
+  vec2 clip = (screen / resolution) * 2.0 - 1.0;
+  return vec2(clip.x, -clip.y);
+}`;
+
 const VERT_QUAD = `#version 300 es
+${GLSL_CAMERA}
 in vec2 aCorner;
 in vec2 aOrigin;
 in vec2 aSize;
@@ -36,10 +58,9 @@ out vec4 vFill;
 out vec4 vStroke;
 out float vSelected;
 void main() {
-  vec2 world = aOrigin + aCorner * aSize;
-  vec2 screen = (world - uCamera) * uScale;
-  vec2 clip = (screen / uResolution) * 2.0 - 1.0;
-  gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
+  vec2 screen = worldToScreen(aOrigin + aCorner * aSize, uCamera, uScale);
+  vec2 clip = screenToClip(screen, uResolution);
+  gl_Position = vec4(clip, 0.0, 1.0);
   vLocal = aCorner;
   vFill = aFill;
   vStroke = aStroke;
@@ -60,7 +81,14 @@ void main() {
   outColor = vec4(color.rgb * color.a, color.a);
 }`;
 
+const FRAG_LINE = `#version 300 es
+precision mediump float;
+in vec4 vColor;
+out vec4 outColor;
+void main() { outColor = vec4(vColor.rgb * vColor.a, vColor.a); }`;
+
 const VERT_LINE = `#version 300 es
+${GLSL_CAMERA}
 in vec2 aPos;
 in vec4 aColor;
 uniform vec2 uResolution;
@@ -68,17 +96,11 @@ uniform vec2 uCamera;
 uniform float uScale;
 out vec4 vColor;
 void main() {
-  vec2 screen = (aPos - uCamera) * uScale;
-  vec2 clip = (screen / uResolution) * 2.0 - 1.0;
-  gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
+  vec2 screen = worldToScreen(aPos, uCamera, uScale);
+  vec2 clip = screenToClip(screen, uResolution);
+  gl_Position = vec4(clip, 0.0, 1.0);
   vColor = aColor;
 }`;
-
-const FRAG_LINE = `#version 300 es
-precision mediump float;
-in vec4 vColor;
-out vec4 outColor;
-void main() { outColor = vec4(vColor.rgb * vColor.a, vColor.a); }`;
 
 function compile(gl: WebGL2RenderingContext, type: number, src: string): WebGLShader | null {
   const sh = gl.createShader(type);
@@ -101,8 +123,18 @@ function linkProgram(gl: WebGL2RenderingContext, vs: string, fs: string): WebGLP
   gl.attachShader(p, v);
   gl.attachShader(p, f);
   gl.linkProgram(p);
-  const ok = gl.getProgramParameter(p, gl.LINK_STATUS);
-  if (!ok) return null;
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+    gl.detachShader(p, v);
+    gl.detachShader(p, f);
+    gl.deleteShader(v);
+    gl.deleteShader(f);
+    gl.deleteProgram(p);
+    return null;
+  }
+  gl.detachShader(p, v);
+  gl.detachShader(p, f);
+  gl.deleteShader(v);
+  gl.deleteShader(f);
   return p;
 }
 
@@ -113,6 +145,28 @@ interface GpuNode {
   classification: keyof typeof CLASSIFICATION_TAG;
 }
 
+interface GpuResources {
+  buffers: WebGLBuffer[];
+  vaos: WebGLVertexArrayObject[];
+  programs: WebGLProgram[];
+  shaders: WebGLShader[];
+}
+
+function newResources(): GpuResources {
+  return { buffers: [], vaos: [], programs: [], shaders: [] };
+}
+
+function deleteResources(gl: WebGL2RenderingContext, r: GpuResources): void {
+  for (const b of r.buffers) gl.deleteBuffer(b);
+  for (const v of r.vaos) gl.deleteVertexArray(v);
+  for (const p of r.programs) gl.deleteProgram(p);
+  for (const s of r.shaders) gl.deleteShader(s);
+  r.buffers.length = 0;
+  r.vaos.length = 0;
+  r.programs.length = 0;
+  r.shaders.length = 0;
+}
+
 export function createWebglRenderer(): CreateRendererResult {
   const issues: string[] = [];
 
@@ -121,6 +175,7 @@ export function createWebglRenderer(): CreateRendererResult {
     issues.push('WebGL2 context unavailable — backend cannot start in this browser');
     return { renderer: null, issues };
   }
+  void probe;
 
   let host: HTMLDivElement | null = null;
   let canvas: HTMLCanvasElement | null = null;
@@ -130,46 +185,91 @@ export function createWebglRenderer(): CreateRendererResult {
   let viewport: Viewport = { x: 0, y: 0, scale: 1 };
   let selection: string | null = null;
   let highlight: Set<string> | null = null;
-  let cssWidth = 1;
-  let cssHeight = 1;
+  let dpr = 1;
   let resizeObserver: ResizeObserver | null = null;
+  let contextLost = false;
 
+  let resources: GpuResources = newResources();
   let quadProgram: WebGLProgram | null = null;
   let lineProgram: WebGLProgram | null = null;
   let quadVao: WebGLVertexArrayObject | null = null;
   let lineVao: WebGLVertexArrayObject | null = null;
+  let quadOriginBuf: WebGLBuffer | null = null;
+  let quadSizeBuf: WebGLBuffer | null = null;
+  let quadFillBuf: WebGLBuffer | null = null;
+  let quadStrokeBuf: WebGLBuffer | null = null;
+  let quadSelBuf: WebGLBuffer | null = null;
+  let lineBuf: WebGLBuffer | null = null;
   let instanceCount = 0;
   let lineVertexCount = 0;
   let gpuNodes: GpuNode[] = [];
 
   const info: RendererInfo = { backendId: 'webgl2-instanced', kind: 'webgl2', details: '' };
 
-  const attrib = (prog: WebGLProgram, name: string, buffer: WebGLBuffer | null, size: number, divisor: number, data: Float32Array) => {
-    if (!gl || !buffer) return;
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
-    const loc = gl.getAttribLocation(prog, name);
-    if (loc < 0) return;
-    gl.enableVertexAttribArray(loc);
-    gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
-    gl.vertexAttribDivisor(loc, divisor);
+  function trackBuffer(b: WebGLBuffer | null): WebGLBuffer | null {
+    if (b) resources.buffers.push(b);
+    return b;
+  }
+
+  function trackVao(v: WebGLVertexArrayObject | null): WebGLVertexArrayObject | null {
+    if (v) resources.vaos.push(v);
+    return v;
+  }
+
+  function releaseAll(): void {
+    if (!gl) return;
+    deleteResources(gl, resources);
+    resources = newResources();
+    quadProgram = null;
+    lineProgram = null;
+    quadVao = null;
+    lineVao = null;
+    quadOriginBuf = quadSizeBuf = quadFillBuf = quadStrokeBuf = quadSelBuf = lineBuf = null;
+    instanceCount = 0;
+    lineVertexCount = 0;
+    gpuNodes = [];
+  }
+
+  const draw = () => {
+    if (!gl || !canvas || contextLost || !quadProgram || !lineProgram) return;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(0.039, 0.055, 0.071, 1); // ink-950
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+
+    const resW = canvas.width;
+    const resH = canvas.height;
+
+    gl.useProgram(lineProgram);
+    gl.uniform2f(gl.getUniformLocation(lineProgram, 'uResolution'), resW, resH);
+    gl.uniform2f(gl.getUniformLocation(lineProgram, 'uCamera'), viewport.x, viewport.y);
+    gl.uniform1f(gl.getUniformLocation(lineProgram, 'uScale'), viewport.scale);
+    if (lineVao && lineVertexCount > 0) {
+      gl.bindVertexArray(lineVao);
+      gl.drawArrays(gl.LINES, 0, lineVertexCount);
+    }
+
+    gl.useProgram(quadProgram);
+    gl.uniform2f(gl.getUniformLocation(quadProgram, 'uResolution'), resW, resH);
+    gl.uniform2f(gl.getUniformLocation(quadProgram, 'uCamera'), viewport.x, viewport.y);
+    gl.uniform1f(gl.getUniformLocation(quadProgram, 'uScale'), viewport.scale);
+    if (quadVao && instanceCount > 0) {
+      gl.bindVertexArray(quadVao);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, instanceCount);
+    }
+    gl.bindVertexArray(null);
   };
 
-  const buildQuadVao = (nodes: GpuNode[]): void => {
+  function uploadQuadGeometry(nodes: GpuNode[]): void {
     if (!gl || !quadProgram) return;
-    if (quadVao) gl.deleteVertexArray(quadVao);
-    quadVao = gl.createVertexArray();
-    if (!quadVao) return;
-    gl.bindVertexArray(quadVao);
-
     const n = nodes.length;
-    const corners = new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]);
+
     const origins = new Float32Array(n * 2);
     const sizes = new Float32Array(n * 2);
     const fills = new Float32Array(n * 4);
     const strokes = new Float32Array(n * 4);
     const sels = new Float32Array(n);
-
     for (let i = 0; i < n; i++) {
       const node = nodes[i];
       origins[i * 2] = node.x;
@@ -186,25 +286,54 @@ export function createWebglRenderer(): CreateRendererResult {
       sels[i] = selected ? 1 : 0;
     }
 
-    attrib(quadProgram, 'aCorner', gl.createBuffer(), 2, 0, corners);
-    attrib(quadProgram, 'aOrigin', gl.createBuffer(), 2, 1, origins);
-    attrib(quadProgram, 'aSize', gl.createBuffer(), 2, 1, sizes);
-    attrib(quadProgram, 'aFill', gl.createBuffer(), 4, 1, fills);
-    attrib(quadProgram, 'aStroke', gl.createBuffer(), 4, 1, strokes);
-    attrib(quadProgram, 'aSelected', gl.createBuffer(), 1, 1, sels);
+    if (quadVao) gl.deleteVertexArray(quadVao);
+    quadVao = trackVao(gl.createVertexArray());
+    if (!quadVao) return;
+    gl.bindVertexArray(quadVao);
+
+    const corners = new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]);
+    const cornerBuf = trackBuffer(gl.createBuffer());
+    gl.bindBuffer(gl.ARRAY_BUFFER, cornerBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, corners, gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(quadProgram, 'aCorner');
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+    quadOriginBuf = trackBuffer(gl.createBuffer());
+    quadSizeBuf = trackBuffer(gl.createBuffer());
+    quadFillBuf = trackBuffer(gl.createBuffer());
+    quadStrokeBuf = trackBuffer(gl.createBuffer());
+    quadSelBuf = trackBuffer(gl.createBuffer());
+
+    bindInstanced(quadProgram, 'aOrigin', quadOriginBuf, 2, origins);
+    bindInstanced(quadProgram, 'aSize', quadSizeBuf, 2, sizes);
+    bindInstanced(quadProgram, 'aFill', quadFillBuf, 4, fills);
+    bindInstanced(quadProgram, 'aStroke', quadStrokeBuf, 4, strokes);
+    bindInstanced(quadProgram, 'aSelected', quadSelBuf, 1, sels);
+
     gl.bindVertexArray(null);
     instanceCount = n;
-  };
+  }
 
-  const buildLineVao = (edges: LineageScene['edges'], pos: LineageScene['layout']['positions']): void => {
+  function bindInstanced(prog: WebGLProgram, name: string, buf: WebGLBuffer | null, size: number, data: Float32Array): void {
+    if (!gl || !buf) return;
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, name);
+    if (loc < 0) return;
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(loc, 1);
+    void loc;
+  }
+
+  function buildLineGeometry(edges: LineageScene['edges'], pos: LineageScene['layout']['positions']): void {
     if (!gl || !lineProgram) return;
     if (lineVao) gl.deleteVertexArray(lineVao);
-    lineVao = gl.createVertexArray();
+    lineVao = trackVao(gl.createVertexArray());
     if (!lineVao) return;
     gl.bindVertexArray(lineVao);
 
-    // Two vertices per edge segment. A polyline bend would be nicer; straight
-    // segments are the measured v1 geometry (declared in the comparison doc).
     const verts: number[] = [];
     for (const e of edges) {
       const a = pos[e.from];
@@ -217,9 +346,9 @@ export function createWebglRenderer(): CreateRendererResult {
       const [r, g, b2, a2] = hexToRgba(RELATION_STYLE_HEX[e.relation].stroke, 0.7);
       verts.push(ax, ay, r, g, b2, a2, bx, by, r, g, b2, a2);
     }
-    const buf = gl.createBuffer();
-    if (!buf) return;
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    lineBuf = trackBuffer(gl.createBuffer());
+    if (!lineBuf) return;
+    gl.bindBuffer(gl.ARRAY_BUFFER, lineBuf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STATIC_DRAW);
     const stride = 6 * 4;
     const aPos = gl.getAttribLocation(lineProgram, 'aPos');
@@ -234,49 +363,47 @@ export function createWebglRenderer(): CreateRendererResult {
     }
     gl.bindVertexArray(null);
     lineVertexCount = verts.length / 6;
-  };
+  }
 
-  const rebuild = () => {
+  function rebuildAll(): void {
     if (!scene) return;
-    const pos = scene.layout.positions;
     gpuNodes = [];
     for (const sn of scene.nodes) {
-      const p = pos[sn.id];
+      const p = scene.layout.positions[sn.id];
       if (p) gpuNodes.push({ id: sn.id, x: MARGIN + p.column * COL_GAP, y: MARGIN + p.row * ROW_GAP, classification: sn.classification });
     }
-    buildQuadVao(gpuNodes);
-    buildLineVao(scene.edges, pos);
-  };
+    uploadQuadGeometry(gpuNodes);
+    buildLineGeometry(scene.edges, scene.layout.positions);
+  }
 
-  const draw = () => {
-    if (!gl || !quadProgram || !lineProgram) return;
-    gl.viewport(0, 0, cssWidth, cssHeight);
-    gl.clearColor(0.039, 0.055, 0.071, 1); // ink-950
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-
-    gl.useProgram(lineProgram);
-    gl.uniform2f(gl.getUniformLocation(lineProgram, 'uResolution'), cssWidth, cssHeight);
-    gl.uniform2f(gl.getUniformLocation(lineProgram, 'uCamera'), viewport.x, viewport.y);
-    gl.uniform1f(gl.getUniformLocation(lineProgram, 'uScale'), viewport.scale);
-    if (lineVao && lineVertexCount > 0) {
-      gl.bindVertexArray(lineVao);
-      gl.drawArrays(gl.LINES, 0, lineVertexCount);
+  // Per-instance selection/highlight colors are updated in place: only the
+  // changed instances' ranges are re-uploaded, geometry is untouched.
+  function updateInstanceColors(): void {
+    if (!gl || !quadFillBuf || !quadStrokeBuf || !quadSelBuf) return;
+    const fills = new Float32Array(instanceCount * 4);
+    const strokes = new Float32Array(instanceCount * 4);
+    const sels = new Float32Array(instanceCount);
+    for (let i = 0; i < instanceCount; i++) {
+      const node = gpuNodes[i];
+      const dimmed = highlight !== null && !highlight.has(node.id);
+      const alpha = dimmed ? 0.15 : 1;
+      const selected = node.id === selection;
+      const fill = hexToRgba(selected ? RAW.ink750 : RAW.ink900, alpha);
+      const stroke = hexToRgba(selected ? RAW.teal : CLASSIFICATION_TAG[node.classification].color, (selected ? 1 : 0.5) * alpha);
+      fills.set(fill, i * 4);
+      strokes.set(stroke, i * 4);
+      sels[i] = selected ? 1 : 0;
     }
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadFillBuf);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, fills);
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadStrokeBuf);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, strokes);
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadSelBuf);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, sels);
+    draw();
+  }
 
-    gl.useProgram(quadProgram);
-    gl.uniform2f(gl.getUniformLocation(quadProgram, 'uResolution'), cssWidth, cssHeight);
-    gl.uniform2f(gl.getUniformLocation(quadProgram, 'uCamera'), viewport.x, viewport.y);
-    gl.uniform1f(gl.getUniformLocation(quadProgram, 'uScale'), viewport.scale);
-    if (quadVao && instanceCount > 0) {
-      gl.bindVertexArray(quadVao);
-      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, instanceCount);
-    }
-    gl.bindVertexArray(null);
-  };
-
-  const setInfoDetails = () => {
+  function setInfoDetails(): void {
     if (!gl) {
       info.details = 'context not created';
       return;
@@ -284,7 +411,7 @@ export function createWebglRenderer(): CreateRendererResult {
     const dbg = gl.getExtension('WEBGL_debug_renderer_info');
     const gpuName = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : 'renderer name not disclosed';
     info.details = `instanced quads (1 draw call) + line buffer (1 draw call); GPU: ${gpuName}`;
-  };
+  }
 
   const renderer: LineageRenderer = {
     info,
@@ -301,12 +428,26 @@ export function createWebglRenderer(): CreateRendererResult {
         issues.push('WebGL2 context creation failed on mount');
         return;
       }
-      quadProgram = linkProgram(gl, VERT_QUAD, FRAG_QUAD);
-      lineProgram = linkProgram(gl, VERT_LINE, FRAG_LINE);
+
+      canvas.addEventListener('webglcontextlost', (ev) => {
+        ev.preventDefault();
+        contextLost = true;
+        releaseAll();
+      });
+      canvas.addEventListener('webglcontextrestored', () => {
+        contextLost = false;
+        initGl();
+        if (scene) rebuildAll();
+        draw();
+      });
+
+      initGl();
       if (!quadProgram || !lineProgram) {
-        issues.push('shader compilation or linking failed');
+        issues.push('shader compilation or linking failed — backend reports itself unavailable');
+        releaseAll();
         return;
       }
+
       setInfoDetails();
 
       const rect = h.getBoundingClientRect();
@@ -324,7 +465,7 @@ export function createWebglRenderer(): CreateRendererResult {
     },
     setScene(s) {
       scene = s;
-      rebuild();
+      rebuildAll();
       draw();
     },
     setViewport(vp) {
@@ -333,18 +474,14 @@ export function createWebglRenderer(): CreateRendererResult {
     },
     setSelection(nodeId) {
       selection = nodeId;
-      rebuild();
-      draw();
+      updateInstanceColors();
     },
     setHighlight(ids) {
       highlight = ids;
-      rebuild();
-      draw();
+      updateInstanceColors();
     },
     resize(w, h) {
-      cssWidth = w;
-      cssHeight = h;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
       if (canvas) {
         canvas.width = Math.floor(w * dpr);
         canvas.height = Math.floor(h * dpr);
@@ -354,32 +491,45 @@ export function createWebglRenderer(): CreateRendererResult {
     hitTest(clientX, clientY) {
       if (!host) return null;
       const rect = host.getBoundingClientRect();
-      const sx = clientX - rect.left;
-      const sy = clientY - rect.top;
-      const wx = (sx - viewport.x) / viewport.scale;
-      const wy = (sy - viewport.y) / viewport.scale;
-      // Linear scan; at 10k nodes this stays well under a millisecond.
+      // Mouse position is CSS px; world mapping is DPR-independent because the
+      // camera lives in CSS-pixel space (buffer conversion happens in draw).
+      const w = worldFromScreen(viewport, clientX - rect.left, clientY - rect.top);
       for (const n of gpuNodes) {
-        if (wx >= n.x && wx <= n.x + NODE_W && wy >= n.y && wy <= n.y + NODE_H) return n.id;
+        if (w.x >= n.x && w.x <= n.x + NODE_W && w.y >= n.y && w.y <= n.y + NODE_H) return n.id;
       }
       return null;
     },
     destroy() {
       resizeObserver?.disconnect();
       resizeObserver = null;
-      if (gl) {
-        if (quadVao) gl.deleteVertexArray(quadVao);
-        if (lineVao) gl.deleteVertexArray(lineVao);
-        if (quadProgram) gl.deleteProgram(quadProgram);
-        if (lineProgram) gl.deleteProgram(lineProgram);
-        gl.getExtension('WEBGL_lose_context')?.loseContext();
-      }
+      releaseAll();
       canvas?.remove();
       canvas = null;
       gl = null;
       host = null;
+      handlers = null;
     },
   };
+
+  function initGl(): void {
+    if (!gl) return;
+    releaseAll();
+
+    const vq = compile(gl, gl.VERTEX_SHADER, VERT_QUAD);
+    const fq = compile(gl, gl.FRAGMENT_SHADER, FRAG_QUAD);
+    const vl = compile(gl, gl.VERTEX_SHADER, VERT_LINE);
+    const fl = compile(gl, gl.FRAGMENT_SHADER, FRAG_LINE);
+    if (!vq || !fq || !vl || !fl) {
+      if (vq) gl.deleteShader(vq);
+      if (fq) gl.deleteShader(fq);
+      if (vl) gl.deleteShader(vl);
+      if (fl) gl.deleteShader(fl);
+      return;
+    }
+    quadProgram = linkProgram(gl, VERT_QUAD, FRAG_QUAD);
+    lineProgram = linkProgram(gl, VERT_LINE, FRAG_LINE);
+    if (!quadProgram || !lineProgram) return;
+  }
 
   return { renderer, issues };
 }
