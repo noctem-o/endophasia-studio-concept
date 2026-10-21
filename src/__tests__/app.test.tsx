@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The application as a user drives it: workspace keys, the synthetic marker everywhere, Observe's filtered stepping, the session
 // switcher's keyboard behaviour, and the epistemic statements the Compare and Capabilities inspectors must make.
-import { describe, it, expect, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
 import { render, fireEvent, cleanup, within, act } from '@testing-library/react';
 import App from '../App';
 
@@ -184,5 +184,45 @@ describe('drawers are never a trap', () => {
     expect(drawer().className).toContain('fixed');
     press('Escape');
     expect(drawer().className).not.toContain('fixed');
+  });
+});
+
+describe('a narrow window: the inspector is a modal, and the page shortcuts stand down while it is open', () => {
+  beforeEach(() => {
+    window.matchMedia = ((q: string) => ({ matches: false, media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia;
+  });
+  afterEach(() => { delete (window as { matchMedia?: unknown }).matchMedia; });
+
+  it('workspace keys, j/k and ? do nothing behind an open inspector; Escape closes it, returns focus, and they work again', () => {
+    const { getByRole } = render(<App />);
+    const r3 = row(3);
+    r3.focus();
+    act(() => { fireEvent.click(r3); });
+    const dlg = getByRole('dialog', { name: 'Event inspector' });
+    expect(dlg.getAttribute('aria-modal')).toBe('true');
+    expect(dlg.contains(document.activeElement)).toBe(true);
+
+    // Real key presses target the focused element and bubble up; fire them from where focus actually is.
+    const key = (k: string) => press(k, {}, (document.activeElement as Element) ?? document.body);
+    key('2'); expect(pressed('Observe')).toBe(true);
+    key('4'); expect(pressed('Observe')).toBe(true);
+    key('?'); expect(document.querySelector('dialog[aria-label="Keyboard shortcuts"]')?.hasAttribute('open')).toBe(false);
+    key('j'); expect(row(3).getAttribute('aria-selected')).toBe('true'); // did not step to event 4
+
+    key('Escape');
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(r3); // returned to the row that opened it
+
+    key('2'); expect(pressed('Compare')).toBe(true);
+  });
+
+  it('switching workspace by the header while the modal is open is not possible by keyboard, and leaves no modal state behind afterwards', () => {
+    const { getByRole } = render(<App />);
+    act(() => { fireEvent.click(row(5)); });
+    expect(getByRole('dialog')).toBeTruthy();
+    // A pointer click on the workspace button (the header is inert for keyboard and assistive tech, but a script or test can still click):
+    act(() => { fireEvent.click(getByRole('button', { name: 'Compare' })); });
+    expect(document.querySelectorAll('[inert]')).toHaveLength(0);
+    press('3'); expect(pressed('Capabilities')).toBe(true); // shortcuts are alive again: no stale modal state
   });
 });

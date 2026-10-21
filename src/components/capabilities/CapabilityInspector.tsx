@@ -1,8 +1,6 @@
-import { X } from 'lucide-react';
 import type { Capability, EvidenceItem, Session } from '../../domain/types';
 import { capabilityMeta } from '../../state/meta';
 import { backing, exercisedBy } from '../../state/capabilities';
-import { IconButton } from '../../ui/controls';
 import { Def, DefList, Section } from '../../ui/layout';
 import { CapabilityGlyph, ProvGlyph, ProvMark, StatusMark } from '../../ui/marks';
 import { EvidenceList } from '../EvidenceList';
@@ -22,10 +20,9 @@ function Statement({ title, kind, text, items, emptyNote }: { title: string; kin
   );
 }
 
-export function CapabilityInspector({ session, capability, onClose, onInspect }: {
+export function CapabilityInspector({ session, capability, onInspect }: {
   session: Session;
   capability: Capability;
-  onClose: () => void;
   onInspect: (eventId: string) => void;
 }) {
   const m = capabilityMeta[capability.status];
@@ -36,7 +33,6 @@ export function CapabilityInspector({ session, capability, onClose, onInspect }:
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-line px-4">
         <span className="eyebrow">Capability</span>
-        <IconButton label="Close capability" onClick={onClose} className="ml-auto lg:hidden"><X className="h-3.5 w-3.5" aria-hidden /></IconButton>
       </div>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto scrollbar-thin px-4 py-4">
         <header>

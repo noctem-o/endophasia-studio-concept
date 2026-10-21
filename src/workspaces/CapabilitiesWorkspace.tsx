@@ -58,7 +58,7 @@ export function CapabilitiesWorkspace({ studio }: { studio: StudioState }) {
 
       <InspectorColumn label="Capability inspector" open={drawer && selected !== null} onClose={() => setDrawer(false)}>
         {selected ? (
-          <CapabilityInspector key={selected.id} session={session} capability={selected} onClose={() => setDrawer(false)} onInspect={studio.inspectEventOf} />
+          <CapabilityInspector key={selected.id} session={session} capability={selected} onInspect={studio.inspectEventOf} />
         ) : (
           <p className="p-6 font-mono text-2xs text-fg-3">no capabilities declared</p>
         )}

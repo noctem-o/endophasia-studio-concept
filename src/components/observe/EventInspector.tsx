@@ -1,4 +1,4 @@
-import { ArrowRight, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Session, TrajectoryEvent } from '../../domain/types';
 import { bestEvidence, categoryMeta, interventionStageMeta } from '../../state/meta';
 import { formatOffset, referencedBy } from '../../state/observe';
@@ -12,14 +12,13 @@ import { ProvMark, ProvTag, StatusMark } from '../../ui/marks';
  * One event, taken apart. Evidence leads, because provenance is the point of the instrument; then what the record says about
  * itself (fields, usage), then how it is related to its neighbours, then (for interventions) its separately-recorded lifecycle.
  */
-export function EventInspector({ session, event, position, onStep, onNavigate, onClose }: {
+export function EventInspector({ session, event, position, onStep, onNavigate }: {
   session: Session;
   event: TrajectoryEvent;
   /** Place among the events currently shown (the filtered list), not among all of them. */
   position: { index: number; total: number };
   onStep: (delta: 1 | -1) => void;
   onNavigate: (eventId: string) => void;
-  onClose: () => void;
 }) {
   const cm = categoryMeta[event.category];
   const Icon = cm.icon;
@@ -40,7 +39,6 @@ export function EventInspector({ session, event, position, onStep, onNavigate, o
         <span className="ml-auto flex items-center gap-1">
           <IconButton label="Previous event (k)" onClick={() => onStep(-1)}><ChevronLeft className="h-3.5 w-3.5" aria-hidden /></IconButton>
           <IconButton label="Next event (j)" onClick={() => onStep(1)}><ChevronRight className="h-3.5 w-3.5" aria-hidden /></IconButton>
-          <IconButton label="Close inspector" onClick={onClose} className="lg:hidden"><X className="h-3.5 w-3.5" aria-hidden /></IconButton>
         </span>
       </div>
 

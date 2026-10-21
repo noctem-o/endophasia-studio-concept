@@ -7,7 +7,7 @@ import { CapabilitiesWorkspace } from './workspaces/CapabilitiesWorkspace';
 import { EvolveWorkspace } from './components/evolve/EvolveWorkspace';
 import { useStudioState } from './state/studio';
 import type { StudioState } from './state/studio';
-import { isTypingTarget } from './state/keys';
+import { isPlainShortcut } from './state/keys';
 
 function statusContext(studio: StudioState): string {
   switch (studio.workspace) {
@@ -36,7 +36,7 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey || isTypingTarget(e.target) || helpOpen) return;
+      if (!isPlainShortcut(e) || helpOpen) return;
       const ws = WORKSPACES.find((w) => w.key === e.key);
       if (ws) {
         e.preventDefault();

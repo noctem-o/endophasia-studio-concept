@@ -125,7 +125,6 @@ export function ObservationWorkspace({ studio }: { studio: StudioState }) {
             position={{ index: selectedIndex, total: filtered.length }}
             onStep={step}
             onNavigate={select}
-            onClose={() => setEventId(null)}
           />
         ) : (
           <SessionBrief session={session} onSelect={select} />
