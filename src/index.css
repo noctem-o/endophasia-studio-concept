@@ -1,37 +1,82 @@
+@import '@fontsource/ibm-plex-sans/latin-400.css';
+@import '@fontsource/ibm-plex-sans/latin-500.css';
+@import '@fontsource/ibm-plex-sans/latin-600.css';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+@import '@fontsource/ibm-plex-mono/latin-500.css';
+@import '@fontsource/ibm-plex-serif/latin-400.css';
+@import '@fontsource/ibm-plex-serif/latin-400-italic.css';
+@import '@fontsource/ibm-plex-serif/latin-500.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   html {
-    font-feature-settings: 'cv05' 1, 'cv08' 1;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    color-scheme: dark;
   }
   body {
-    @apply bg-ink-950 text-ink-100 font-sans text-[13px] leading-relaxed;
+    @apply bg-surface-0 font-sans text-sm text-fg-1;
+    font-feature-settings: 'ss01' 0, 'zero' 1;
   }
   ::selection {
-    @apply bg-teal-900/60 text-ink-50;
+    @apply bg-select/25 text-fg-1;
   }
+  /* One focus treatment everywhere. It is a ring, never a fill: a fill (or a left bar) is what SELECTION looks like. */
   :focus-visible {
-    outline: 1px solid theme('colors.teal.accent');
-    outline-offset: 1px;
+    outline: 2px solid theme('colors.select');
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+  select, input, button {
+    font: inherit;
+  }
+  table {
+    border-collapse: collapse;
+  }
+}
+
+@layer components {
+  /* "Not a direct record": synthetic data, simulated projections. Texture, not hue, so it never reads as an evidence class. */
+  .hatch {
+    background-image: repeating-linear-gradient(135deg, rgba(236, 232, 223, 0.16) 0 1px, transparent 1px 6px);
+  }
+  .hatch-der {
+    background-image: repeating-linear-gradient(135deg, rgba(180, 156, 247, 0.32) 0 1px, transparent 1px 6px);
+  }
+  .hatch-der-faint {
+    background-image: repeating-linear-gradient(135deg, rgba(180, 156, 247, 0.13) 0 1px, transparent 1px 6px);
+  }
+  .hatch-faint {
+    background-image: repeating-linear-gradient(135deg, rgba(236, 232, 223, 0.07) 0 1px, transparent 1px 6px);
+  }
+  .panel {
+    @apply rounded-panel border border-line bg-surface-1 shadow-inset;
+  }
+  .eyebrow {
+    @apply font-mono text-2xs uppercase tracking-[0.14em] text-fg-3;
   }
 }
 
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: theme('colors.ink.600') transparent;
+    scrollbar-color: theme('colors.line.strong') transparent;
   }
   .scrollbar-thin::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: theme('colors.ink.600');
-    border-radius: 4px;
+    background-color: theme('colors.line.strong');
+    border-radius: 5px;
+    border: 2px solid transparent;
+    background-clip: content-box;
   }
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
@@ -48,5 +93,6 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

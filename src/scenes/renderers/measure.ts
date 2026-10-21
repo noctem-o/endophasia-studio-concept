@@ -59,11 +59,20 @@ function runTimed(kind: string, op: () => void, warmup: number, runs: number): T
   };
 }
 
+/** Keeps the result of a timed construction reachable, so an engine cannot discard the work being timed. */
+let sink: unknown = null;
+export function constructionSink(): unknown { return sink; }
+
 export interface SceneBuildOp {
-  /** Build the scene from corpus (scene-contract cost). Null when only the
-   * built scene is available — the metric is then reported unmeasured with
-   * that reason rather than timing a no-op. */
-  buildScene: (() => void) | null;
+  /**
+   * An operation that CONSTRUCTS the scene being displayed, and returns it. It is only timed if it is shown to do that: it must
+   * return a scene whose content digest equals the displayed scene's. A builder that returns nothing, or builds something else,
+   * is reported unmeasured with that reason rather than timed — a property lookup or an unrelated build is not a scene-build
+   * measurement. Null when the scene arrived already built.
+   */
+  buildScene: (() => LineageScene | null | void) | null;
+  /** What `buildScene` is (corpus → scene, or a synthetic fixture generator). Defaults to a neutral "scene construction". */
+  buildLabel?: string;
   /** Push a scene + initial viewport into a live renderer (scene upload cost). */
   pushScene: () => void;
   /** Push a viewport change into a live renderer (frame cost proxy). */
@@ -71,10 +80,21 @@ export interface SceneBuildOp {
 }
 
 /**
- * Measure scene-build, scene-upload and viewport-apply costs. Frame rate is
- * measured only when a rAF loop is actually available and actually run —
- * otherwise it is reported unmeasured with the reason. A missing builder is
- * never timed as a no-op: the figure appears under unmeasured instead.
+ * What each figure is and is not. The UI shows these beside the numbers so that a CPU-side cost is never read as a frame time.
+ * Keyed by the timing's `kind` prefix.
+ */
+export const MEASUREMENT_DEFINITIONS: { prefix: string; is: string; isNot: string }[] = [
+  { prefix: 'scene build', is: 'CPU time to construct the scene data from records (pure JavaScript, no renderer involved).', isNot: 'not rendering, and not the cost of laying anything out on screen.' },
+  { prefix: 'scene generation', is: 'CPU time to generate a synthetic stress fixture (no records involved).', isNot: 'not a corpus build, and not a result about any real lineage.' },
+  { prefix: 'scene upload', is: 'CPU time of renderer.setScene: DOM construction for SVG, buffer upload submission for WebGL.', isNot: 'not GPU execution, and not time to first paint.' },
+  { prefix: 'viewport apply', is: 'CPU time of renderer.setViewport (a transform for SVG, a draw submission for WebGL).', isNot: 'not frame time: the GPU may still be working when it returns.' },
+  { prefix: 'rAF cadence', is: 'the interval between successive requestAnimationFrame callbacks while the probe drives the viewport.', isNot: 'not GPU frame time, and not the compositor presenting a frame.' },
+];
+
+/**
+ * Measure scene-build, scene-upload and viewport-apply costs (CPU time on the main thread). Frame rate is measured only when a
+ * rAF loop is actually available and actually run. GPU execution and frame-present latency cannot be observed from the main
+ * thread and are always listed as unmeasured, with the reason.
  */
 export function measureRenderer(
   backendId: string,
@@ -89,13 +109,24 @@ export function measureRenderer(
   ];
 
   const timings: Timing[] = [];
-  if (op.buildScene) {
-    timings.push(runTimed('scene build (corpus → scene)', op.buildScene, WARMUP_RUNS, MEASURED_RUNS));
-  } else {
+  // With no declared builder we do not know what kind of construction this would have been, so the label does not presume one.
+  const buildKind = op.buildLabel ?? 'scene construction';
+  const builder = op.buildScene;
+  if (!builder) {
     unmeasured.push({
-      kind: 'scene build (corpus → scene)',
+      kind: buildKind,
       reason: 'not measured: this scene arrived already built and no builder was supplied, so there is no construction operation to time — timing a property lookup would be a fake measurement',
     });
+  } else {
+    // Prove the operation constructs the displayed scene before timing it.
+    const probe = builder();
+    if (!probe) {
+      unmeasured.push({ kind: buildKind, reason: 'not measured: the supplied operation returned no scene, so it cannot be shown to construct the displayed one — it was not timed' });
+    } else if (probe.contentDigest !== scene.contentDigest) {
+      unmeasured.push({ kind: buildKind, reason: 'not measured: the supplied operation builds a different scene from the one displayed (content digests differ) — it was not timed' });
+    } else {
+      timings.push(runTimed(buildKind, () => { sink = builder(); }, WARMUP_RUNS, MEASURED_RUNS));
+    }
   }
   timings.push(
     runTimed('scene upload (renderer.setScene)', op.pushScene, WARMUP_RUNS, MEASURED_RUNS),

@@ -176,16 +176,18 @@ export const EVOLVE_SEQUENCE = [
 ] as const;
 export type EvolveStage = (typeof EVOLVE_SEQUENCE)[number];
 
+/** Status labels and meanings are domain facts; the classes follow the colour grammar: progress is neutral (a stage reached is not
+ *  evidence), "needs a decision" takes attention, and only a recorded rejection takes fault. Nothing here is a provenance hue. */
 export const candidateStatusMeta: Record<CandidateStatus, { label: string; desc: string; text: string; border: string; bg: string }> = {
-  draft: { label: 'DRAFT', desc: 'Recorded as an idea; no experiment defined.', text: 'text-ink-300', border: 'border-ink-500/50', bg: 'bg-ink-700/40' },
-  proposed: { label: 'PROPOSED', desc: 'A proposal exists. A proposal is not permission.', text: 'text-blue-accent', border: 'border-blue-accent/40', bg: 'bg-blue-accent/8' },
-  isolated: { label: 'ISOLATED', desc: 'Experiment arms defined; variables controlled where possible.', text: 'text-violet-300', border: 'border-violet-400/40', bg: 'bg-violet-400/8' },
-  evaluated: { label: 'EVALUATED', desc: 'Trials ran and were judged. An evaluation result is not a promotion.', text: 'text-amber-accent', border: 'border-amber-accent/40', bg: 'bg-amber-accent/8' },
-  review: { label: 'IN REVIEW', desc: 'Under human review; comparisons inspected for validity.', text: 'text-amber-accent', border: 'border-amber-accent/40', bg: 'bg-amber-accent/8' },
-  authorised: { label: 'AUTHORISED', desc: 'An authority decision exists, bound to a specific record. Authorisation is recorded, execution still separate.', text: 'text-teal-accent', border: 'border-teal-accent/40', bg: 'bg-teal-accent/8' },
-  promoted: { label: 'PROMOTED', desc: 'A recorded promotion decision replaced the baseline reference.', text: 'text-teal-accent', border: 'border-teal-accent/50', bg: 'bg-teal-accent/12' },
-  rejected: { label: 'REJECTED', desc: 'A recorded decision not to adopt, with its reason.', text: 'text-red-accent', border: 'border-red-accent/40', bg: 'bg-red-accent/8' },
-  withdrawn: { label: 'WITHDRAWN', desc: 'Withdrawn by its proposer before evaluation completed.', text: 'text-ink-400', border: 'border-ink-500/50', bg: 'bg-ink-700/40' },
+  draft: { label: 'DRAFT', desc: 'Recorded as an idea; no experiment defined.', text: 'text-fg-3', border: 'border-line', bg: 'bg-transparent' },
+  proposed: { label: 'PROPOSED', desc: 'A proposal exists. A proposal is not permission.', text: 'text-fg-2', border: 'border-line-strong', bg: 'bg-transparent' },
+  isolated: { label: 'ISOLATED', desc: 'Experiment arms defined; variables controlled where possible.', text: 'text-fg-2', border: 'border-line-strong', bg: 'bg-transparent' },
+  evaluated: { label: 'EVALUATED', desc: 'Trials ran and were judged. An evaluation result is not a promotion.', text: 'text-fg-1', border: 'border-line-strong', bg: 'bg-surface-3' },
+  review: { label: 'IN REVIEW', desc: 'Under human review; comparisons inspected for validity.', text: 'text-attn', border: 'border-attn/50', bg: 'bg-attn/10' },
+  authorised: { label: 'AUTHORISED', desc: 'An authority decision exists, bound to a specific record. Authorisation is recorded, execution still separate.', text: 'text-fg-1', border: 'border-fg-2', bg: 'bg-surface-3' },
+  promoted: { label: 'PROMOTED', desc: 'A recorded promotion decision replaced the baseline reference.', text: 'text-fg-1', border: 'border-fg-2', bg: 'bg-surface-3' },
+  rejected: { label: 'REJECTED', desc: 'A recorded decision not to adopt, with its reason.', text: 'text-fault', border: 'border-fault/50', bg: 'bg-fault/10' },
+  withdrawn: { label: 'WITHDRAWN', desc: 'Withdrawn by its proposer before evaluation completed.', text: 'text-fg-3', border: 'border-line', bg: 'bg-transparent' },
 };
 
 export interface Candidate {

@@ -150,19 +150,47 @@ numbers are invented anywhere in the app or docs.
 
 ## Check status
 
-All commands were actually run on this tree (Phase IV completion state):
+> Correction (design pass): the figures below were true of the working tree they were recorded on, but the committed
+> `postcss.config.js` had no plugins (Tailwind never ran, so the committed app rendered as unstyled HTML), the committed
+> `eslint.config.js` was invalid for ESLint 9 (`plugins`/`rules` nested inside `languageOptions`), and eight unreachable prototype
+> components failed `tsc`. All three were repaired in the design-pass branch; see `docs/design-direction.md`.
+
+> Correction (design pass), renderers: the `svg-dom` backend built its `<svg>` in `mount()` but never attached it to the host element,
+> so it drew nothing in a real browser (it was the fallback when WebGL2 is unavailable, and the "reference implementation"). The
+> jsdom tests never inspected the host's contents. It now attaches (`svgRenderer.test.ts` checks the DOM). Consequence for
+> measurements: any `svg-dom` timing taken before this fix measured building a *detached* DOM (no insertion, layout or paint), so it
+> is not comparable with a timing taken now. No WebGL, coordinate-transform or measurement code was changed.
+
+> Correction (design pass), measurement: the diagnostics panel's "scene build (corpus → scene)" figure timed
+> `() => { void s.nodes.length; }`, a property lookup, not scene construction, and a test pinned it in place (it passed a no-op and
+> asserted three timings). `measureRenderer` now times scene construction only when the operation it is given returns a scene whose
+> content digest equals the displayed scene's; otherwise the figure is reported unmeasured, with the reason. Each scene the
+> explorer offers carries its own verified builder (`buildLineageScene` for the recorded lineage; the generator for a synthetic
+> fixture, labelled as generation, not as a corpus build). Any "scene build" figure quoted before this change is not a measurement.
+
+> Correction (design pass), interactions: the lineage text filter and the relation toggles changed only the node *count*; neither
+> reached a renderer, so every node and edge stayed drawn and undimmed, and the "12 browser interactions" listed below were not all
+> true of the drawn graph. Both now act on it (the filter dims non-matching nodes through `setHighlight`; hidden relations hand
+> the renderer a view of the scene with those edges removed). They are covered by `explorerFilter.test.tsx` and the browser suite.
+
+Recorded at the Phase IV completion state (superseded; see the corrections above and the current counts in the README):
 
 - `npm run typecheck` — 0 errors
 - `npm run lint` — 0 errors (1 pre-existing fast-refresh warning)
-- `npm test` — 124 tests, 5 files, all pass
+- `npm test` — 135 tests, 6 files, all pass
 - `npm run build` — passes
 
 The 12 listed browser interactions (pan, wheel zoom about cursor, click
 select, keyboard navigation, filter, relation toggles, fit, zoom-to-node,
 backend swap, scene switch, diagnostics panel, heatmap PoC) were implemented
-and exercised via the interaction-model test suite; full in-browser WebGL2
-verification requires a real browser and is listed as explicitly unverified
-in `docs/renderer-comparison.md`.
+and exercised via the interaction-model test suite, which never touched a
+renderer. **Superseded:** the `e2e/` Playwright suite now exercises them in a real
+browser (SVG attach and draw, hit-testing, pan/zoom/fit, filter, relation toggles,
+scene switching, renderer switching with camera and selection preserved, WebGL2 under
+software rendering, context loss and restore) and replaced `scripts/browser-verify.mjs`,
+whose centre-pixel probe read the drawing buffer after compositing (zeros regardless of
+what was drawn). WebGL2 there runs on a software rasteriser (SwiftShader): that is
+correctness evidence, never a hardware measurement.
 
 See `docs/renderer-comparison.md` for what was measured, what was only
 prototyped, and what is explicitly unverified.

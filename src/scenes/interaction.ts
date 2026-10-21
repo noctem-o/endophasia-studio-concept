@@ -76,12 +76,14 @@ export function filteredVisibleNodes(scene: LineageScene, state: InteractionStat
   }
   if (q === '' && state.hiddenRelations.size === 0) return matches;
 
+  // Context is ONE hop from a match. The test is against `matches`, not the set being grown: testing `keep` follows edges in storage
+  // order and walks past one hop (filtering "replay" showed 9 of 13 nodes instead of 2, including the simulated projection).
   const keep = new Set(matches);
   if (matches.size > 0) {
     for (const e of scene.edges) {
       if (state.hiddenRelations.has(e.relation)) continue;
-      if (keep.has(e.from)) keep.add(e.to);
-      if (keep.has(e.to)) keep.add(e.from);
+      if (matches.has(e.from)) keep.add(e.to);
+      if (matches.has(e.to)) keep.add(e.from);
     }
   }
   return keep;

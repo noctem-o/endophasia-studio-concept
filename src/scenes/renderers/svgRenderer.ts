@@ -1,6 +1,6 @@
 import type { LineageScene } from '../types';
 import type { CreateRendererResult, LineageRenderer, RendererEventHandlers, RendererInfo, Viewport } from './types';
-import { CLASSIFICATION_TAG, PROVENANCE_BADGE, RAW, RELATION_STYLE_HEX } from './palette';
+import { CLASSIFICATION_TAG, nodePaint, PROVENANCE_BADGE, RAW, RELATION_STYLE_HEX } from './palette';
 import { worldFromScreen } from '../interaction';
 
 /**
@@ -51,6 +51,11 @@ export function createSvgRenderer(): CreateRendererResult {
     details: 'one SVG element per graph element; DOM hit-testing; text via <text>',
   };
 
+  // Dimming lives on the node groups, which setScene rebuilds (and selection rebuilds the scene), so it is reapplied after every build.
+  const applyHighlight = () => {
+    for (const [id, g] of nodeEls) g.setAttribute('opacity', highlight !== null && !highlight.has(id) ? '0.25' : '1');
+  };
+
   const applyTransform = () => {
     // Convention: screen = world * scale + offset. Applied to the content
     // group — the outer <svg> is a fixed-size viewport element and ignores a
@@ -78,6 +83,8 @@ export function createSvgRenderer(): CreateRendererResult {
       rootGroup.appendChild(edgeLayer);
       rootGroup.appendChild(nodeLayer);
       svg.appendChild(rootGroup);
+      // Attach to the host. Without this the SVG is built and never shown: the backend drew nothing in a real browser.
+      h.appendChild(svg);
 
       h.addEventListener('click', (ev: MouseEvent) => {
         const nodeId = renderer.hitTest(ev.clientX, ev.clientY);
@@ -95,7 +102,7 @@ export function createSvgRenderer(): CreateRendererResult {
 
       const defs = el('defs', {});
       const marker = el('marker', { id: 'svg-arrow', viewBox: '0 0 8 8', refX: 7, refY: 4, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' });
-      const arrow = el('path', { d: 'M0,0 L8,4 L0,8', fill: 'none', stroke: RAW.ink500, 'stroke-width': 1.4 });
+      const arrow = el('path', { d: 'M0,0 L8,4 L0,8', fill: 'none', stroke: RAW.lineStrong, 'stroke-width': 1.4 });
       marker.appendChild(arrow);
       defs.appendChild(marker);
       edgeLayer.appendChild(defs);
@@ -134,17 +141,20 @@ export function createSvgRenderer(): CreateRendererResult {
 
         const g = el('g', { transform: `translate(${x} ${y})`, 'data-node-id': n.id });
         const selected = n.id === selection;
+        const paint = nodePaint(n.classification, { selected, dimmed: false });
         const bg = el('rect', {
-          width: NODE_W, height: NODE_H, rx: 5,
-          fill: selected ? RAW.ink750 : RAW.ink900,
-          stroke: selected ? RAW.teal : 'none', 'stroke-width': selected ? 1.5 : 0,
+          width: NODE_W, height: NODE_H, rx: 4,
+          fill: paint.fill.hex, 'fill-opacity': paint.fill.alpha,
+          stroke: selected ? paint.stroke.hex : 'none', 'stroke-width': selected ? 1.5 : 0,
+          // A selected projection keeps its dashed outline (selection is the ivory colour, not a solid line).
+          ...(selected && paint.hollow ? { 'stroke-dasharray': '4 3' } : {}),
         });
-        const ring = el('rect', { width: NODE_W, height: NODE_H, rx: 5, fill: 'none', stroke: tag.color, 'stroke-opacity': 0.5, 'stroke-width': 1 });
-        const tagText = el('text', { x: 10, y: 17, fill: tag.color, 'font-size': 8, 'font-family': 'IBM Plex Mono, monospace', 'letter-spacing': 1.2 });
+        const ring = el('rect', { width: NODE_W, height: NODE_H, rx: 4, fill: 'none', stroke: paint.stroke.hex, 'stroke-opacity': selected ? 0 : paint.stroke.alpha, 'stroke-width': 1, ...(paint.hollow ? { 'stroke-dasharray': '4 3' } : {}) });
+        const tagText = el('text', { x: 10, y: 17, fill: tag.color, 'font-size': 9, 'font-family': 'IBM Plex Mono, monospace', 'letter-spacing': 0.8 });
         tagText.textContent = tag.label;
-        const label = el('text', { x: 10, y: 31, fill: RAW.ink100, 'font-size': 10.5, 'font-family': 'Inter, sans-serif' });
-        label.textContent = n.label.length > 26 ? n.label.slice(0, 25) + '…' : n.label;
-        const sub = el('text', { x: 10, y: 41, fill: RAW.ink400, 'font-size': 8, 'font-family': 'IBM Plex Mono, monospace' });
+        const label = el('text', { x: 10, y: 31, fill: RAW.fg1, 'font-size': 11, 'font-family': 'IBM Plex Sans, sans-serif' });
+        label.textContent = n.label.length > 25 ? n.label.slice(0, 24) + '…' : n.label;
+        const sub = el('text', { x: 10, y: 41, fill: RAW.fg3, 'font-size': 9, 'font-family': 'IBM Plex Mono, monospace' });
         sub.textContent = n.sessionId ? n.sessionId : 'trajectory not in registry';
         g.appendChild(bg);
         g.appendChild(ring);
@@ -152,14 +162,22 @@ export function createSvgRenderer(): CreateRendererResult {
         g.appendChild(label);
         g.appendChild(sub);
 
-        // Provenance badge — OBS/REP/DER/N-A made explicit on the node.
-        const provBadge = el('text', { x: NODE_W - 10, y: 17, fill: prov.color, 'font-size': 7.5, 'text-anchor': 'end', 'font-family': 'IBM Plex Mono, monospace', 'letter-spacing': 0.8 });
+        // Provenance badge: the class's SHAPE (disc / half / diamond / dashed ring) plus its three letters, so it survives colour-blindness.
+        const provBadge = el('text', { x: NODE_W - 10, y: 17, fill: prov.color, 'font-size': 9, 'text-anchor': 'end', 'font-family': 'IBM Plex Mono, monospace', 'letter-spacing': 0.8 });
         provBadge.textContent = prov.label;
         g.appendChild(provBadge);
+        const gx = NODE_W - 10 - prov.label.length * 6.2 - 7;
+        const gy = 14;
+        if (prov.glyph === 'disc') g.appendChild(el('circle', { cx: gx, cy: gy, r: 3.4, fill: prov.color }));
+        else if (prov.glyph === 'half') {
+          g.appendChild(el('circle', { cx: gx, cy: gy, r: 3.1, fill: 'none', stroke: prov.color, 'stroke-width': 1.1 }));
+          g.appendChild(el('path', { d: `M${gx} ${gy - 3.1}a3.1 3.1 0 0 0 0 6.2z`, fill: prov.color }));
+        } else if (prov.glyph === 'diamond') g.appendChild(el('path', { d: `M${gx} ${gy - 4}l4 4l-4 4l-4 -4z`, fill: prov.color }));
+        else g.appendChild(el('circle', { cx: gx, cy: gy, r: 3.1, fill: 'none', stroke: prov.color, 'stroke-width': 1, 'stroke-dasharray': '1.6 1.4' }));
 
+        // Explicit gap marker: no trajectory in the observation registry. A hollow dashed ring (the N/A shape), clear of the badge.
         if (n.sessionId === null) {
-          const gap = el('circle', { cx: NODE_W - 12, cy: 12, r: 4, fill: RAW.amber, 'fill-opacity': 0.3, stroke: RAW.amber, 'stroke-width': 1, 'stroke-dasharray': '2 2' });
-          g.appendChild(gap);
+          g.appendChild(el('circle', { cx: NODE_W - 12, cy: NODE_H - 10, r: 4, fill: 'none', stroke: RAW.na, 'stroke-width': 1.2, 'stroke-dasharray': '2 1.8' }));
         }
 
       nodeLayer.appendChild(g);
@@ -167,6 +185,7 @@ export function createSvgRenderer(): CreateRendererResult {
       void nodeById;
       }
       applyTransform();
+      applyHighlight();
     },
     setViewport(vp) {
       viewport = vp;
@@ -178,12 +197,7 @@ export function createSvgRenderer(): CreateRendererResult {
     },
     setHighlight(ids) {
       highlight = ids;
-      if (!nodeLayer) return;
-      for (const [id, g] of nodeEls) {
-        const dimmed = highlight !== null && !highlight.has(id);
-        g.setAttribute('opacity', dimmed ? '0.25' : '1');
-      }
-      void scene;
+      applyHighlight();
     },
     resize(w, h) {
       width = w;
