@@ -1,49 +1,102 @@
-# Endophasia Studio — Concept Exploration
+# Endophasia Studio — Concept
 
-An interactive design exploration of **Endophasia Studio**, an observation instrument for studying AI coding-agent behaviour.
+An interactive design exploration of a **research workstation for observing AI coding-agent behaviour** — an instrument for recording, inspecting, and comparing agent trajectories with explicit evidence provenance, rather than a product mock.
 
-> **This is a design prototype built entirely on synthetic demonstration data.** It is not connected to any real runtime, agent, or observation backend. Nothing here implies observed behaviour of a real system.
+> **All data in this prototype is synthetic demonstration data.** Nothing is connected to a real runtime. Every session, event, capability, and source is a fixture authored to exercise the interface's epistemic rules.
 
-## What this explores
+## What it does
 
-The prototype investigates what a high-quality observation workspace for the [Endophasia](https://github.com/noctem-o/endophasia) project could look and feel like — a fusion of scientific instrumentation, observability tooling, and research laboratory interface.
+The studio is organised as three workspaces over a shared session registry:
 
-Key design questions being explored:
+### Observe
 
-- How should **capability admission states** (admitted / partially admitted / unavailable / mismatched / unverified) be presented without collapsing them into a single meaningless "health" signal?
-- How can **evidence provenance** (OBS / REP / DER / N/A) be made immediately legible at every level of inspection?
-- How should a **source integrity** view report conditions (readable / degraded / absent) per source, without inventing an aggregate score?
-- What does a **trajectory comparison / divergence** preview look like when it is grounded strictly in recorded events and clear provenance?
+A filtered, searchable view of one recorded session:
 
-## What's inside
+- **Event table** — storage-ordered records with category, status, and a provenance glyph column showing what class of evidence backs each record (◉ observed, ◔ reported, ∆ derived, ∅ unavailable).
+- **Trajectory ribbon** — a compact visual index of the filtered trajectory; interventions render with a dashed border. Click any segment or use ↑↓ / j / k to move through events.
+- **Inspector** — full record view: fields, usage accounting, expandable evidence rows (each showing its source, and for derived values the declared derivation process), an expandable raw structured record, explicit relations to other events, and — for intervention records — the intervention's full lifecycle with its separately recorded steps.
+- **Filters** — by category, status, best-evidence class, and free text across titles, fields, and summaries.
 
-- **Observation workspace** — three-panel layout (runtime identity + capabilities, event trajectory, evidence inspector)
-- **Three demonstration sessions** — a clean completed run, a divergent/terminated run, and a run with incomplete evidence (journal truncation, degraded usage ledger)
-- **Working interactions** — session switching, trajectory filtering/search, event and capability inspection, structured-data expansion
-- **Concept preview** — a clearly-labelled trajectory divergence comparison, explicitly scoped to recorded events only (no claims about private reasoning or model internals)
+### Compare
 
-## Running locally
+Side-by-side alignment of two trajectories using a **deterministic, displayable methodology** (no hidden heuristics):
 
-```bash
-npm install
-npm run dev
+- **Phase 1 — exact match**: same event kind and tool, identical compared-field values (`tool`, `path`, `cmd`).
+- **Phase 2 — proposed correspondence**: same kind and tool, paired greedily in storage order. These are hypotheses for inspection, not verified pairings.
+- **Residual — unmatched**: records left unpaired on either side, shown without a verdict.
+
+Every row can be expanded to show both records' evidence side by side plus a per-field delta. The methodology panel states the phases and their caveats in the interface itself, so the alignment's meaning is never implicit.
+
+### Capabilities
+
+What the runtime declared versus what the record actually shows:
+
+- **Capability inventory** with status glyphs — admitted ●, partially admitted ◐, unavailable ○, mismatched ▲, unverified ◇. "Unavailable" is deliberately distinct from "inactive"; "admitted but never exercised" is shown as unverified, not functional.
+- **Declared vs observed** panels per capability, with restrictions and the evidence for each claim.
+- **Session usage** — the events that exercised the capability, linked back to the observation view.
+- **Source ledger** — the independent sources behind the records (event log, registries, usage ledger), each with its recorded condition: readable, empty, absent, degraded, or unopenable.
+
+## The epistemic rules
+
+These are enforced in the domain types and validated by the test suite:
+
+1. **Missing ≠ zero.** Token usage is either present with counts, or explicitly not-present with a stated reason. A zero is never used to stand in for an absent measurement.
+2. **Unavailable ≠ inactive.** A capability that isn't granted is not the same as one that wasn't used. Admission without exercise is recorded as unverified.
+3. **No invented confidence.** The interface never displays a numeric confidence score that the underlying record does not contain.
+4. **No model-internals claims.** Records describe what was observed and reported, not why the model behaved as it did. Sequencing is not causation — the intervention records state this explicitly.
+5. **Provenance on every claim.** Each evidence item carries a class (OBS / REP / DER / N-A) and, where applicable, the identifier of the independent source it came from.
+
+## Synthetic scenarios
+
+| Session | Scenario | Demonstrates |
+|---|---|---|
+| `run-3f92c1` | A — successful run | A complete, clean trajectory with full evidence and usage accounting. |
+| `run-2b7e90` | B — tool failure and recovery | An error, a diagnosis, a corrective patch, and a passing retry — with explicit `responds_to` / `recovery_for` / `retries` relations. |
+| `run-6c07e4` | C — trajectory divergence | The same task as A, sharing its recorded prefix, then diverging to a divergent-terminated outcome under an authorised intervention. |
+| `run-8d41aa` | D — evidence degradation | A degraded usage ledger (missing ≠ zero), a truncated journal, and a session whose end is simply not recorded. |
+| `run-5aa1d3` | E — capability mismatch | The same runtime under a different harness policy: the mismatched network capability becomes admitted — and remains unexercised. |
+| `run-1f4c88` | F — authorised interventions | STEER and QUEUE interventions whose propose / authorise / accept / consume / expire steps are each separate recorded events. Acceptance is not execution. |
+
+## Architecture
+
+```
+src/
+  domain/types.ts        Canonical contracts: evidence, usage presence,
+                         events, interventions, sessions
+  data/fixtures/         Six synthetic scenarios + shared builders
+  analysis/compare.ts    Deterministic alignment, session statistics,
+                         fixture validation
+  state/                 Workspace state hook + design-system metadata
+  components/            UI kit: primitives, evidence list, JSON tree,
+                         trajectory ribbon, event inspector
+  workspaces/            Observe / Compare / Capabilities
 ```
 
-Then open the printed local URL. The app is fully client-side; there is no backend.
+The fixture layer is deliberately separated from the domain types: a future implementation replaces the fixtures with a loader over validated observation projections, and the `Session` shape is the contract.
 
-## Stack
+### Verification
 
-- React 18 + TypeScript
-- Vite
-- Tailwind CSS
-- lucide-react (icons)
+```bash
+npm run lint        # eslint, clean
+npm run typecheck   # tsc --noEmit, clean
+npx vitest run      # 29 tests: per-session fixture validation, alignment
+                    # semantics, missing-usage invariants, intervention
+                    # lifecycle stage sequences
+npm run build       # production build
+```
 
-## Relationship to the real project
+The test suite checks the epistemic rules directly: every session passes structural validation (storage order, timestamp-offset consistency, reference integrity, intervention steps pointing at recorded events), no session presents missing usage as present, and alignment is deterministic — the same inputs always produce the same pairing, exact matches are never conflated with proposed correspondences, and different event kinds are never paired.
 
-This prototype does **not** reflect current Endophasia Studio behaviour or capabilities. It is an exploration of future interface directions, informed by the project's stated design principles: separating observation from interpretation, evidence from conclusions, and proposals from permission.
+## Design decisions
 
-Mock data lives in `src/data/` and is structured so a real implementation could swap the mock access layer for actual observation projections without changing the interface components.
+- **Provenance-first colour system.** A restrained ink palette carries the structure; the four accent colours (teal, blue, amber, red) map to evidence semantics, so colour always means something.
+- **Demonstration data is labelled everywhere.** The header and footer carry a persistent demonstration-data marker; nothing in the interface could be mistaken for a live connection.
+- **Alignment is shown, not hidden.** The comparison methodology is part of the interface — phases, rules, and caveats are rendered in the Compare workspace, not buried in documentation.
+- **Sequence is not causation.** Wherever the record could imply a causal claim (interventions, retries, recoveries), the interface says explicitly that the record shows ordering, not cause.
 
-## License
+## Limitations
 
-TBD — see the main [endophasia](https://github.com/noctem-o/endophasia) repository for project context.
+- All data is synthetic and hand-authored; nothing is ingested from a real runtime.
+- The alignment model compares recorded kinds, tools, and a small set of compared fields only — no semantic analysis of request or response content.
+- The interface is read-only by design: this is an observation surface, not an intervention surface.
+- Session validation covers structural consistency, not semantic plausibility of the fixture content.
