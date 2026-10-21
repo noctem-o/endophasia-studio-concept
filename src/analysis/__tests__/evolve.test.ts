@@ -6,8 +6,10 @@ import {
   EVOLVE_SEQUENCE,
 } from '../../domain/evolve';
 import type { Checkpoint } from '../../domain/evolve';
+import type { EvolveCorpus } from '../../domain/evolve';
 import {
   compareArms,
+  armDrift,
   cellStats,
   wilson,
   quantile,
@@ -94,9 +96,46 @@ describe('compareArms', () => {
     const b = compareArms(evolveCorpus, 'arm-retry-a', 'arm-retry-b');
     expect(a).toEqual(b);
   });
+
+  it('reports zero drift on the shipped corpus (arms hold their conditions)', () => {
+    for (const arm of evolveCorpus.arms) {
+      expect(armDrift(evolveCorpus, arm.id), arm.id).toEqual([]);
+    }
+  });
+
+  it('demotes the verdict to confounded when an arm drifts on a coordinate', () => {
+    // Two executions in one arm that disagree on a coordinate the arms did not
+    // declare as the manipulation: the change is not a property of the arm.
+    const drifted: EvolveCorpus = {
+      ...evolveCorpus,
+      executions: evolveCorpus.executions.map((e) =>
+        e.id === 'exec-r1' ? { ...e, coordinates: { ...e.coordinates, harness: { status: 'recorded', value: 'cli-v2' } } } : e,
+      ),
+    };
+    const drift = armDrift(drifted, 'arm-retry-b');
+    expect(drift).toHaveLength(1);
+    expect(drift[0].kind).toBe('harness');
+    expect(drift[0].variants).toHaveLength(2);
+
+    const report = compareArms(drifted, 'arm-retry-a', 'arm-retry-b');
+    expect(report.verdict).toBe('confounded');
+    expect(report.drift.length).toBeGreaterThan(0);
+    expect(report.summary).toContain('Within-arm drift');
+  });
+
+  it('declared changes still count as drift between replicates (change must be a property of the arm)', () => {
+    const drifted: EvolveCorpus = {
+      ...evolveCorpus,
+      executions: evolveCorpus.executions.map((e) =>
+        e.id === 'exec-r2' ? { ...e, coordinates: { ...e.coordinates, resourceBudget: { status: 'recorded', value: 'output tokens: 2,048 / retry policy: loop-until-pass (max 3)' } } } : e,
+      ),
+    };
+    const report = compareArms(drifted, 'arm-retry-a', 'arm-retry-b');
+    expect(report.verdict).toBe('confounded');
+  });
 });
 
-// ─── Derived statistics ──────────────────────────────────────────────────
+// ─── Derived statistics ──────────────────────────────────────────────────────
 
 describe('cellStats', () => {
   const expRetryTrials = evolveCorpus.trials.filter((t) => t.experimentId === 'exp-retry');
@@ -175,7 +214,7 @@ describe('wilson interval', () => {
   });
 });
 
-// ─── Corpus integrity ────────────────────────────────────────────────────
+// ─── Corpus integrity ────────────────────────────────────────────────────────
 
 describe('validateCorpus', () => {
   it('passes cleanly on the shipped corpus', () => {
@@ -276,7 +315,7 @@ describe('continuationSupport', () => {
   });
 });
 
-// ─── Derived views consistency ────────────────────────────────────────────
+// ─── Derived views consistency ──────────────────────────────────────────────
 
 describe('corpus lookups and derived consistency', () => {
   it('every experiment arm resolves', () => {

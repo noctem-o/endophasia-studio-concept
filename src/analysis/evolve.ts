@@ -11,7 +11,7 @@ import type {
 } from '../domain/evolve';
 import { COORDINATE_SPECS, continuationSupport } from '../domain/evolve';
 
-// ─── Comparability inspection ────────────────────────────────────────────
+// ─── Comparability inspection ────────────────────────────────────────────────
 //
 // Two arms are compared coordinate by coordinate. Every coordinate is classified:
 //
@@ -23,11 +23,12 @@ import { COORDINATE_SPECS, continuationSupport } from '../domain/evolve';
 //                  treated as equal or as different: no comparison exists.
 //
 // Verdicts:
-//   comparable   — no unmatched coordinates, and every changed coordinate is in
-//                  the candidate arm's declared changedCoordinates.
+//   comparable   — no unmatched coordinates, no within-arm drift, and every
+//                  changed coordinate is in the candidate arm's declared
+//                  changedCoordinates.
 //   flag-changed — changed coordinates outside the declared manipulation.
-//   confounded   — one or more unmatched coordinates, or the arm is declared
-//                  confounded.
+//   confounded   — one or more unmatched coordinates, within-arm drift on
+//                  either side, or the arm is declared confounded.
 
 export type CoordinateClass = 'matched' | 'changed' | 'unmatched' | 'not-declared';
 
@@ -51,6 +52,8 @@ export interface ComparabilityReport {
   aArmId: string;
   bArmId: string;
   coordinates: CoordinateComparison[];
+  /** Within-arm coordinate disagreement on either side, when measured. */
+  drift: DriftFinding[];
   verdict: ComparabilityVerdict;
   summary: string;
 }
@@ -106,9 +109,11 @@ export function compareArms(
 
   const unmatched = coordinates.filter((c) => c.cls === 'unmatched');
   const undeclared = coordinates.filter((c) => c.cls === 'changed' && !c.declaredChange);
+  const drift = [...armDrift(corpus, aArmId), ...armDrift(corpus, bArmId)];
 
   let verdict: ComparabilityVerdict;
   if (unmatched.length > 0) verdict = 'confounded';
+  else if (drift.length > 0) verdict = 'confounded';
   else if (undeclared.length > 0) verdict = 'changed-outside-declaration';
   else verdict = 'comparable';
 
@@ -116,9 +121,11 @@ export function compareArms(
     ? 'All coordinates matched, except changes the candidate arm declares as its manipulation. Outcome comparison is interpretable, with the trial counts as the bound on precision.'
     : verdict === 'changed-outside-declaration'
       ? `Changed coordinates outside the declared manipulation: ${undeclared.map((c) => c.label).join(', ')}. The difference may not measure what the arm intended.`
-      : `Unmatched coordinates: ${unmatched.map((c) => c.label).join(', ')}. At least one side could not record them — the arms are not fully comparable, and no verdict is offered on relative outcome.`;
+      : unmatched.length > 0
+        ? `Unmatched coordinates: ${unmatched.map((c) => c.label).join(', ')}. At least one side could not record them — the arms are not fully comparable, and no verdict is offered on relative outcome.`
+        : `Within-arm drift: ${drift.map((d) => d.label).join(', ')} varies between replicates inside an arm. The arms do not hold their conditions constant, so no cross-arm comparison is offered.`;
 
-  return { aArmId, bArmId, coordinates, verdict, summary };
+  return { aArmId, bArmId, coordinates, drift, verdict, summary };
 }
 
 function firstCoordinate(execs: Execution[], kind: CoordinateKind): CoordinateValue<string> | undefined {
@@ -129,7 +136,47 @@ function firstCoordinate(execs: Execution[], kind: CoordinateKind): CoordinateVa
   return undefined;
 }
 
-// ─── Derived result statistics ───────────────────────────────────────
+/**
+ * Within-arm drift: executions sharing an arm must agree on every coordinate
+ * they record. Disagreement is a confound even when the arm declares a change —
+ * the change must be a property of the arm, not vary between its replicates.
+ */
+export interface DriftFinding {
+  kind: CoordinateKind;
+  label: string;
+  /** Recorded values observed within the arm, with the executions carrying them. */
+  variants: { value: string; executionIds: string[] }[];
+}
+
+export function armDrift(corpus: EvolveCorpus, armId: string): DriftFinding[] {
+  const arm = corpus.arms.find((a) => a.id === armId);
+  if (!arm) return [];
+  const ids = new Set(arm.executionIds);
+  const execs = corpus.executions.filter((e) => ids.has(e.id) || e.armId === armId);
+
+  const findings: DriftFinding[] = [];
+  for (const spec of COORDINATE_SPECS) {
+    const byValue = new Map<string, string[]>();
+    for (const e of execs) {
+      const v = e.coordinates[spec.kind];
+      if (v?.status === 'recorded') {
+        const list = byValue.get(v.value) ?? [];
+        list.push(e.id);
+        byValue.set(v.value, list);
+      }
+    }
+    if (byValue.size > 1) {
+      findings.push({
+        kind: spec.kind,
+        label: spec.label,
+        variants: [...byValue.entries()].map(([value, executionIds]) => ({ value, executionIds })),
+      });
+    }
+  }
+  return findings;
+}
+
+// ─── Derived result statistics ───────────────────────────────────────────────
 //
 // Methodology (documented in the UI alongside every figure):
 //

@@ -7,7 +7,9 @@ import { validateCorpus, cellStats } from '../../analysis/evolve';
 import { SectionLabel } from '../primitives';
 import { candidateStatusMeta, continuationMeta } from '../../domain/evolve';
 import type { CandidateStatus } from '../../domain/evolve';
-import { LineageCanvas } from './LineageCanvas';
+import { LineageExplorer, type ExplorerSceneEntry } from '@/scenes/LineageExplorer';
+import { buildLineageScene } from '@/scenes/lineageBuilder';
+import { makeSyntheticScene } from '@/scenes/renderers/synthetic';
 import { ExecutionDetail } from './ExecutionDetail';
 import { CheckpointPanel } from './CheckpointPanel';
 import { ExperimentView } from './ExperimentView';
@@ -17,6 +19,9 @@ import { RELATION_META } from './shared';
 export function EvolveWorkspace({ studio }: { studio: StudioState }) {
   const corpus = evolveCorpus;
   const view = studio.evolveView;
+  // Remembered so returning to the lineage overview keeps the graph selection.
+  const [lastExecId, setLastExecId] = useState<string | null>(null);
+  if (view.kind === 'execution' && view.executionId !== lastExecId) setLastExecId(view.executionId);
   const sessionLabels = useMemo(() => new Map(studio.sessions.map((s) => [s.id, s.label])), [studio.sessions]);
   const validation = useMemo(() => validateCorpus(corpus, new Set(studio.sessions.map((s) => s.id))), [corpus, studio.sessions]);
 
@@ -39,7 +44,7 @@ export function EvolveWorkspace({ studio }: { studio: StudioState }) {
       <div className="flex min-w-0 flex-1 flex-col">
         {view.kind === 'corpus' && (
           <CorpusOverview
-            selectedExecId={null}
+            selectedExecId={lastExecId}
             onSelect={(id) => openExecution(id)}
             validation={validation}
           />
@@ -81,6 +86,7 @@ export function EvolveWorkspace({ studio }: { studio: StudioState }) {
                 corpus={corpus} cand={selectedCand}
                 onOpenExecution={openExecution}
                 onOpenExperiment={openExperiment}
+                onOpenCandidate={openCandidate}
               />
             )}
           </DetailCanvas>
@@ -146,11 +152,29 @@ function CorpusOverview({ selectedExecId, onSelect, validation }: {
         )}
       </div>
       <div className="min-h-0 flex-1">
-        <LineageCanvas corpus={corpus} selectedId={selectedExecId} onSelect={onSelect} />
+        <LineageExplorer
+          scenes={explorerScenes}
+          initialSelection={selectedExecId}
+          onOpenNode={onSelect}
+        />
       </div>
     </div>
   );
 }
+
+/** Scenes for the explorer: the corpus lineage plus synthetic stress fixtures. */
+const explorerScenes: ExplorerSceneEntry[] = (() => {
+  const built = buildLineageScene(evolveCorpus);
+  const entries: ExplorerSceneEntry[] = [];
+  if (built.scene) {
+    entries.push({ id: built.scene.sceneId, label: 'recorded lineage (synthetic programme)', scene: built.scene, synthetic: false });
+  }
+  for (const n of [100, 1000, 10000]) {
+    const s = makeSyntheticScene({ nodeCount: n, seed: n });
+    entries.push({ id: s.scene.sceneId, label: `${n} nodes`, scene: s.scene, synthetic: true });
+  }
+  return entries;
+})();
 
 function DetailCanvas({ kind, label, onBack, children }: {
   kind: string;
@@ -175,7 +199,7 @@ function DetailCanvas({ kind, label, onBack, children }: {
   );
 }
 
-// ─── Side panels ───────────────────────────────────────────────────────────
+// ─── Side panels ─────────────────────────────────────────────────────────────
 
 function TrialListPanel({ corpus, execId, onOpenExecution, onOpenSession, sessionLabel }: {
   corpus: EvolveCorpus;
@@ -292,7 +316,7 @@ function ExperimentSidePanel({ corpus, experimentId, onOpenExecution }: {
               <div className="font-mono text-2xs text-ink-200">{arm.label}</div>
               <div className="mt-0.5 font-mono text-2xs text-ink-400">
                 {cell.total} trials · {cell.passes}/{cell.passDenominator} checks passed
-                {cell.interrupted > 0 && ` · ${cell.interrupted} interrupted`}
+                {'interrupted' in cell && cell.interrupted > 0 && ` · ${cell.interrupted} interrupted`}
               </div>
             </div>
           );
