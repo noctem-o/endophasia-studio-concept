@@ -97,9 +97,9 @@ The fixture layer is deliberately separated from the domain types: a future impl
 ### Verification
 
 ```bash
-npm run lint        # eslint, clean
+npm run lint        # eslint: 0 errors (1 pre-existing fast-refresh warning)
 npm run typecheck   # tsc --noEmit, clean
-npm test            # 124 tests, 5 files: fixture validation, alignment
+npm test            # 135 tests, 6 files: fixture validation, alignment
                     # semantics, missing-usage invariants, intervention
                     # lifecycles, the EVOLVE suite — coordinate declarations,
                     # comparability verdicts, Wilson-interval math, cell

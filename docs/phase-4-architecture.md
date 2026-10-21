@@ -150,11 +150,16 @@ numbers are invented anywhere in the app or docs.
 
 ## Check status
 
+> Correction (design pass): the figures below were true of the working tree they were recorded on, but the committed
+> `postcss.config.js` had no plugins (Tailwind never ran, so the committed app rendered as unstyled HTML), the committed
+> `eslint.config.js` was invalid for ESLint 9 (`plugins`/`rules` nested inside `languageOptions`), and eight unreachable prototype
+> components failed `tsc`. All three were repaired in the design-pass branch; see `docs/design-direction.md`.
+
 All commands were actually run on this tree (Phase IV completion state):
 
 - `npm run typecheck` — 0 errors
 - `npm run lint` — 0 errors (1 pre-existing fast-refresh warning)
-- `npm test` — 124 tests, 5 files, all pass
+- `npm test` — 135 tests, 6 files, all pass
 - `npm run build` — passes
 
 The 12 listed browser interactions (pan, wheel zoom about cursor, click
