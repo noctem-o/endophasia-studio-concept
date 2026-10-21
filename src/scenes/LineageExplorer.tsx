@@ -359,10 +359,10 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
                       {CLASSIFICATION_TAG[n.classification].label} · {PROVENANCE_BADGE[n.provenance].label}
                     </div>
                     {lod === 'full' && (
-                      <div className="max-w-[170px] truncate text-[10.5px]" style={{ color: RAW.ink100 }}>{n.label}</div>
+                      <div className="max-w-[170px] truncate text-[10.5px]" style={{ color: RAW.fg1 }}>{n.label}</div>
                     )}
                     {lod === 'full' && (
-                      <div className="font-mono text-[8px]" style={{ color: RAW.ink400 }}>{n.sessionId ?? 'trajectory not in registry'}</div>
+                      <div className="font-mono text-[8px]" style={{ color: RAW.fg3 }}>{n.sessionId ?? 'trajectory not in registry'}</div>
                     )}
                   </div>
                 );

@@ -1,6 +1,6 @@
 import type { LineageScene } from '../types';
 import type { CreateRendererResult, LineageRenderer, RendererEventHandlers, RendererInfo, Viewport } from './types';
-import { CLASSIFICATION_TAG, PROVENANCE_BADGE, RAW, RELATION_STYLE_HEX } from './palette';
+import { CLASSIFICATION_TAG, nodePaint, PROVENANCE_BADGE, RAW, RELATION_STYLE_HEX } from './palette';
 import { worldFromScreen } from '../interaction';
 
 /**
@@ -95,7 +95,7 @@ export function createSvgRenderer(): CreateRendererResult {
 
       const defs = el('defs', {});
       const marker = el('marker', { id: 'svg-arrow', viewBox: '0 0 8 8', refX: 7, refY: 4, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' });
-      const arrow = el('path', { d: 'M0,0 L8,4 L0,8', fill: 'none', stroke: RAW.ink500, 'stroke-width': 1.4 });
+      const arrow = el('path', { d: 'M0,0 L8,4 L0,8', fill: 'none', stroke: RAW.lineStrong, 'stroke-width': 1.4 });
       marker.appendChild(arrow);
       defs.appendChild(marker);
       edgeLayer.appendChild(defs);
@@ -134,17 +134,18 @@ export function createSvgRenderer(): CreateRendererResult {
 
         const g = el('g', { transform: `translate(${x} ${y})`, 'data-node-id': n.id });
         const selected = n.id === selection;
+        const paint = nodePaint(n.classification, { selected, dimmed: false });
         const bg = el('rect', {
-          width: NODE_W, height: NODE_H, rx: 5,
-          fill: selected ? RAW.ink750 : RAW.ink900,
-          stroke: selected ? RAW.teal : 'none', 'stroke-width': selected ? 1.5 : 0,
+          width: NODE_W, height: NODE_H, rx: 4,
+          fill: paint.fill.hex, 'fill-opacity': paint.fill.alpha,
+          stroke: selected ? paint.stroke.hex : 'none', 'stroke-width': selected ? 1.5 : 0,
         });
-        const ring = el('rect', { width: NODE_W, height: NODE_H, rx: 5, fill: 'none', stroke: tag.color, 'stroke-opacity': 0.5, 'stroke-width': 1 });
+        const ring = el('rect', { width: NODE_W, height: NODE_H, rx: 4, fill: 'none', stroke: paint.stroke.hex, 'stroke-opacity': selected ? 0 : paint.stroke.alpha, 'stroke-width': 1, ...(paint.hollow ? { 'stroke-dasharray': '4 3' } : {}) });
         const tagText = el('text', { x: 10, y: 17, fill: tag.color, 'font-size': 8, 'font-family': 'IBM Plex Mono, monospace', 'letter-spacing': 1.2 });
         tagText.textContent = tag.label;
-        const label = el('text', { x: 10, y: 31, fill: RAW.ink100, 'font-size': 10.5, 'font-family': 'Inter, sans-serif' });
+        const label = el('text', { x: 10, y: 31, fill: RAW.fg1, 'font-size': 10.5, 'font-family': 'IBM Plex Sans, sans-serif' });
         label.textContent = n.label.length > 26 ? n.label.slice(0, 25) + '…' : n.label;
-        const sub = el('text', { x: 10, y: 41, fill: RAW.ink400, 'font-size': 8, 'font-family': 'IBM Plex Mono, monospace' });
+        const sub = el('text', { x: 10, y: 41, fill: RAW.fg3, 'font-size': 8, 'font-family': 'IBM Plex Mono, monospace' });
         sub.textContent = n.sessionId ? n.sessionId : 'trajectory not in registry';
         g.appendChild(bg);
         g.appendChild(ring);
@@ -158,7 +159,7 @@ export function createSvgRenderer(): CreateRendererResult {
         g.appendChild(provBadge);
 
         if (n.sessionId === null) {
-          const gap = el('circle', { cx: NODE_W - 12, cy: 12, r: 4, fill: RAW.amber, 'fill-opacity': 0.3, stroke: RAW.amber, 'stroke-width': 1, 'stroke-dasharray': '2 2' });
+          const gap = el('circle', { cx: NODE_W - 12, cy: 12, r: 4, fill: RAW.attention, 'fill-opacity': 0.3, stroke: RAW.attention, 'stroke-width': 1, 'stroke-dasharray': '2 2' });
           g.appendChild(gap);
         }
 

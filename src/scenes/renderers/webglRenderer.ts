@@ -1,6 +1,6 @@
-import type { LineageScene } from '../types';
+import type { LineageScene, SceneNodeClassification } from '../types';
 import type { CreateRendererResult, LineageRenderer, RendererEventHandlers, RendererInfo, Viewport } from './types';
-import { hexToRgba, RAW, RELATION_STYLE_HEX, CLASSIFICATION_TAG } from './palette';
+import { hexToRgba, nodePaint, RAW, RELATION_STYLE_HEX } from './palette';
 import { worldFromScreen } from '../interaction';
 
 /**
@@ -143,7 +143,7 @@ interface GpuNode {
   id: string;
   x: number;
   y: number;
-  classification: keyof typeof CLASSIFICATION_TAG;
+  classification: SceneNodeClassification;
 }
 
 interface GpuResources {
@@ -238,7 +238,8 @@ export function createWebglRenderer(): CreateRendererResult {
     if (!gl || !canvas || contextLost || !quadProgram || !lineProgram) return;
     if (cssW <= 0 || cssH <= 0) return;
     gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.clearColor(0.039, 0.055, 0.071, 1); // ink-950
+    const [clearR, clearG, clearB] = hexToRgba(RAW.canvas, 1); // the canvas surface token
+    gl.clearColor(clearR, clearG, clearB, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -309,10 +310,10 @@ export function createWebglRenderer(): CreateRendererResult {
       sizes[i * 2] = NODE_W;
       sizes[i * 2 + 1] = NODE_H;
       const dimmed = highlight !== null && !highlight.has(node.id);
-      const alpha = dimmed ? 0.15 : 1;
       const selected = node.id === selection;
-      const fill = hexToRgba(selected ? RAW.ink750 : RAW.ink900, alpha);
-      const stroke = hexToRgba(selected ? RAW.teal : CLASSIFICATION_TAG[node.classification].color, (selected ? 1 : 0.5) * alpha);
+      const paint = nodePaint(node.classification, { selected, dimmed });
+      const fill = hexToRgba(paint.fill.hex, paint.fill.alpha);
+      const stroke = hexToRgba(paint.stroke.hex, paint.stroke.alpha);
       fills.set(fill, i * 4);
       strokes.set(stroke, i * 4);
       sels[i] = selected ? 1 : 0;
@@ -418,10 +419,10 @@ export function createWebglRenderer(): CreateRendererResult {
     for (let i = 0; i < instanceCount; i++) {
       const node = gpuNodes[i];
       const dimmed = highlight !== null && !highlight.has(node.id);
-      const alpha = dimmed ? 0.15 : 1;
       const selected = node.id === selection;
-      const fill = hexToRgba(selected ? RAW.ink750 : RAW.ink900, alpha);
-      const stroke = hexToRgba(selected ? RAW.teal : CLASSIFICATION_TAG[node.classification].color, (selected ? 1 : 0.5) * alpha);
+      const paint = nodePaint(node.classification, { selected, dimmed });
+      const fill = hexToRgba(paint.fill.hex, paint.fill.alpha);
+      const stroke = hexToRgba(paint.stroke.hex, paint.stroke.alpha);
       fills.set(fill, i * 4);
       strokes.set(stroke, i * 4);
       sels[i] = selected ? 1 : 0;
