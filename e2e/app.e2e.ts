@@ -89,3 +89,19 @@ test('the shortcut sheet opens with ? and closes with Escape', async ({ page }) 
   await page.keyboard.press('Escape');
   await expect(dlg).toBeHidden();
 });
+
+test('the trajectory overview: events recorded at the same instant each select their own marker (time axis)', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: /Recorded session/ }).click();
+  await page.getByRole('option', { name: /run-8d41aa/ }).click();
+  await page.getByRole('radio', { name: 'time' }).or(page.getByRole('button', { name: 'time', exact: true })).first().click();
+  const overview = page.getByRole('region', { name: 'Trajectory overview' });
+  // seq 10 (model) and 11 (lifecycle) share one recorded offset, hence one x; they sit in different lanes.
+  for (const seq of [10, 11]) {
+    const box = await overview.locator(`g[data-seq="${seq}"]`).boundingBox();
+    expect(box, `marker for seq ${seq}`).not.toBeNull();
+    await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await expect(page.locator(`tr[data-seq="${seq}"]`)).toHaveAttribute('aria-selected', 'true');
+  }
+});

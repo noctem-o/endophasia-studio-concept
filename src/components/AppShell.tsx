@@ -88,15 +88,16 @@ const SHORTCUTS: { group: string; rows: { keys: string[]; what: string }[] }[] =
   { group: 'Everywhere', rows: [
     { keys: ['1', '2', '3', '4'], what: 'Switch workspace' },
     { keys: ['?'], what: 'This sheet' },
-    { keys: ['/'], what: 'Focus the search field' },
   ] },
   { group: 'Observe', rows: [
+    { keys: ['/'], what: 'Focus the event search' },
     { keys: ['j', '↓'], what: 'Next event in the filtered list' },
     { keys: ['k', '↑'], what: 'Previous event in the filtered list' },
     { keys: ['Esc'], what: 'Clear the selection' },
   ] },
   { group: 'Lineage graph (focus it first)', rows: [
     { keys: ['←', '→', '↑', '↓'], what: 'Move the selection' },
+    { keys: ['/'], what: 'Focus the node filter (Evolve › Lineage)' },
     { keys: ['f'], what: 'Focus the selected execution’s lineage' },
     { keys: ['0'], what: 'Fit the whole graph' },
   ] },

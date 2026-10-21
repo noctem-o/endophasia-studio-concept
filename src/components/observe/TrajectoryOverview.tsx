@@ -117,15 +117,21 @@ export function TrajectoryOverview({ session, matching, selectedId, hoveredId, o
     return { x: Math.max(x0, Math.min(xa, xb)), w: Math.abs(xb - xa) };
   }, [windowSeq, events, xs, step, x0]);
 
-  const colBounds = useMemo(() => {
+  // Hit columns are split between DISTINCT x positions. Events recorded at the same instant share an x (time axis), so they share a
+  // column and are told apart by lane instead: each owns only its own lane's band of that column.
+  const { colBounds, tied } = useMemo(() => {
     const out = new Map<string, [number, number]>();
-    sorted.forEach((e, i) => {
+    const xsDistinct = [...new Set(sorted.map((e) => xs.get(e.id) ?? 0))];
+    const count = new Map<number, number>();
+    for (const e of sorted) count.set(xs.get(e.id) ?? 0, (count.get(xs.get(e.id) ?? 0) ?? 0) + 1);
+    sorted.forEach((e) => {
       const x = xs.get(e.id) ?? 0;
-      const left = i === 0 ? x0 : (x + (xs.get(sorted[i - 1].id) ?? 0)) / 2;
-      const right = i === sorted.length - 1 ? x1 + PAD_R : (x + (xs.get(sorted[i + 1].id) ?? 0)) / 2;
+      const k = xsDistinct.indexOf(x);
+      const left = k === 0 ? x0 : (x + xsDistinct[k - 1]) / 2;
+      const right = k === xsDistinct.length - 1 ? x1 + PAD_R : (x + xsDistinct[k + 1]) / 2;
       out.set(e.id, [left, right]);
     });
-    return out;
+    return { colBounds: out, tied: new Set(sorted.filter((e) => (count.get(xs.get(e.id) ?? 0) ?? 0) > 1).map((e) => e.id)) };
   }, [sorted, xs, x0, x1]);
 
   const tipEvent = hovered ?? null;
@@ -244,13 +250,15 @@ export function TrajectoryOverview({ session, matching, selectedId, hoveredId, o
           {/* hit columns: the whole column of an event is its target */}
           {sorted.map((e) => {
             const [l, r] = colBounds.get(e.id) ?? [0, 0];
+            const lane = tied.has(e.id);
             return (
               <rect
                 key={e.id}
+                data-hit={e.seq}
                 x={l}
-                y={0}
+                y={lane ? TOP + categoryMeta[e.category].lane * LANE_H : 0}
                 width={Math.max(2, r - l)}
-                height={H - AXIS_H}
+                height={lane ? LANE_H : H - AXIS_H}
                 fill="transparent"
                 className="cursor-pointer"
                 onMouseEnter={() => onHover(e.id)}

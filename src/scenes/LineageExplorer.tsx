@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Crosshair, Gauge, Maximize2 } from 'lucide-react';
+import { isPlainShortcut } from '../state/keys';
 import type { LineageScene } from './types';
 import type { Viewport } from './renderers/types';
 import { createRenderer, isBackendAvailable, type BackendId } from './renderers';
@@ -68,6 +69,7 @@ const selectCls = 'h-6 max-w-[300px] rounded-tag border border-line bg-surface-2
 
 export function LineageExplorer({ scenes, initialSceneId, initialSelection = null, onOpenNode, onSelectNode, selectedId }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const filterRef = useRef<HTMLInputElement | null>(null);
   const rendererRef = useRef<LineageRenderer | null>(null);
   const dragRef = useRef<{ startX: number; startY: number; vp: Viewport } | null>(null);
   const movedRef = useRef(false);
@@ -275,8 +277,11 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
 
   // Measured figures belong to the backend that produced them (and the rAF cadence to the live renderer and scene): never carried
   // across a switch, which would show one backend's numbers under another's name.
-  useEffect(() => { setMeasurements([]); setFps('unmeasured'); }, [backend]);
-  useEffect(() => { setFps('unmeasured'); }, [sceneId]);
+  // A cadence probe is asynchronous (60 frames). Any change of backend or scene invalidates the one in flight, so its late result
+  // can never be published against a renderer or scene it did not measure.
+  const probeRun = useRef(0);
+  useEffect(() => { probeRun.current++; setMeasurements([]); setFps('unmeasured'); }, [backend]);
+  useEffect(() => { probeRun.current++; setFps('unmeasured'); }, [sceneId]);
 
   // ── Keyboard navigation ──────────────────────────────────────
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -305,6 +310,17 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
     }
   }, [scene, interaction.selection, interaction.focus, select]);
 
+  // '/' focuses the node filter, as it focuses the event search in Observe (the shortcut sheet says so).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/' || !isPlainShortcut(e)) return;
+      e.preventDefault();
+      filterRef.current?.focus();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const switchBackend = (id: BackendId) => {
     const avail = isBackendAvailable(id);
     if (!avail) {
@@ -318,13 +334,14 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
     if (!scene) return;
     setMeasurements(runMeasurementPass(backend, scenes));
     const live = rendererRef.current;
+    const run = ++probeRun.current;
     if (live) {
       try {
         const r = await measureFps(() => live.setViewport({ ...interactionRef.current.viewport, x: (interactionRef.current.viewport.x ?? 0) + 0.5 }));
-        setFps(r ?? null);
+        if (probeRun.current === run) setFps(r ?? null);
       } finally {
-        // The probe nudges the renderer's camera; put it back exactly where the application state says it is.
-        live.setViewport(interactionRef.current.viewport);
+        // The probe nudges the renderer's camera; put it back exactly where the application state says it is (unless that renderer has gone).
+        if (rendererRef.current === live) live.setViewport(interactionRef.current.viewport);
       }
     } else {
       setFps(null);
@@ -392,6 +409,7 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
               onChange={(query) => setInteraction((s) => ({ ...s, query }))}
               placeholder="Filter by label or id"
               label="Filter nodes"
+              inputRef={filterRef}
               className="w-48"
             />
             <Button

@@ -45,6 +45,9 @@ export function useModalDrawer(ref: RefObject<HTMLElement | null>, active: boole
   const openRef = useRef(stillOpen);
   openRef.current = stillOpen;
   const mounted = useRef(true);
+  // The control that opened the drawer. It outlives a modal -> column -> modal round trip (a resize or rotation), during which focus
+  // may sit inside the inspector, so it is only replaced by a control OUTSIDE the inspector and cleared when the drawer really closes.
+  const openerRef = useRef<HTMLElement | null>(null);
 
   // Declared first, so on unmount its cleanup runs before the modal's and the modal can tell it is going away.
   useEffect(() => {
@@ -55,7 +58,8 @@ export function useModalDrawer(ref: RefObject<HTMLElement | null>, active: boole
   useEffect(() => {
     const el = ref.current;
     if (!el || !active) return;
-    const initiator = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const here = document.activeElement;
+    if (here instanceof HTMLElement && here !== document.body && !el.contains(here)) openerRef.current = here;
     const release = enterModal();
     const restoreInert = makeSiblingsInert(el);
     el.focus({ preventScroll: true });
@@ -100,6 +104,8 @@ export function useModalDrawer(ref: RefObject<HTMLElement | null>, active: boole
       release();
       // Closed, or the whole workspace went away: put focus somewhere sensible. Merely widening past the breakpoint leaves it be.
       if (openRef.current && mounted.current) return;
+      const initiator = openerRef.current;
+      openerRef.current = null;
       const target = initiator && initiator.isConnected && !el.contains(initiator) ? initiator : document.getElementById('workspace');
       target?.focus({ preventScroll: true });
     };

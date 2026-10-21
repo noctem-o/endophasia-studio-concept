@@ -133,3 +133,17 @@ describe('the explorer wires the entry builders into its measurement pass', () =
     expect(await findByText(/scene construction: unmeasured/, {}, { timeout: 8000 })).toBeTruthy();
   }, 15000);
 });
+
+describe('a cadence probe that outlives its scene', () => {
+  it('does not publish its late result against the scene the user has since switched to', async () => {
+    const recorded = explorerScenes.find((e) => !e.synthetic)!;
+    const other = explorerScenes.find((e) => e.synthetic)!;
+    const { getByText, getByLabelText, queryByText } = render(<LineageExplorer scenes={[recorded, other]} />);
+    act(() => { fireEvent.click(getByText('diagnostics')); });
+    await act(async () => { fireEvent.click(getByText(/run measurement pass/)); });
+    act(() => { fireEvent.change(getByLabelText('Scene'), { target: { value: other.id } }); }); // while the 60-frame probe is still running
+    await act(async () => { await new Promise((r) => setTimeout(r, 2000)); }); // let the old probe finish
+    expect(queryByText(/unmeasured — run a probe/)).toBeTruthy();
+    expect(queryByText(/rAF interval, not GPU time/)).toBeNull();
+  }, 15000);
+});

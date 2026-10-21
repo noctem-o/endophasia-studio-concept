@@ -75,3 +75,26 @@ describe('a Compare isolate does not outlive its alignment', () => {
     expect(chips().some((c) => c.getAttribute('aria-pressed') === 'true')).toBe(false);
   });
 });
+
+describe('the "/" shortcut does what the shortcut sheet says', () => {
+  const press = (key: string) => act(() => { fireEvent.keyDown(window, { key }); });
+  it('focuses the event search in Observe and the node filter in Evolve › Lineage', () => {
+    const { getByLabelText } = render(<App />);
+    press('/');
+    expect(document.activeElement).toBe(getByLabelText('Search events'));
+    (document.activeElement as HTMLElement).blur();
+    press('4');
+    press('/');
+    expect(document.activeElement).toBe(getByLabelText('Filter nodes'));
+  });
+
+  it('the sheet lists it only where it works (not under "Everywhere")', () => {
+    const { getByRole } = render(<App />);
+    press('?');
+    const sheet = getByRole('dialog', { name: /keyboard shortcuts/i, hidden: true });
+    const groups = Array.from(sheet.querySelectorAll('section, div')).filter((n) => /^Everywhere/.test(n.textContent ?? '') && n.querySelector('kbd'));
+    const everywhere = groups.sort((a, b) => (a.textContent ?? '').length - (b.textContent ?? '').length)[0];
+    expect(everywhere.textContent).toContain('Switch workspace');
+    expect(everywhere.textContent).not.toContain('Focus the');
+  });
+});

@@ -106,7 +106,7 @@ The fixture layer is deliberately separated from the domain types: a future impl
 npm ci                 # the lockfile is committed; Node ^22.22.2 (see .nvmrc and package.json "engines")
 npm run typecheck      # tsc --noEmit for the app and for e2e/
 npm run lint           # eslint: no errors, no warnings
-npm test               # 316 tests, 19 files (see below)
+npm test               # 320 tests, 19 files (see below)
 npm run build          # production build
 npm run audit:classes  # after a build: fails if a colour/shadow utility used in
                        # src/ generated no CSS (Tailwind drops unknown classes silently)

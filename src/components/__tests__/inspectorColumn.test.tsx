@@ -189,6 +189,18 @@ describe('transitions', () => {
     expect(document.activeElement).toBe(g.getByText('last')); // not yanked back to the opener
   });
 
+  it('focus returns to the ORIGINAL opener after a narrow -> wide -> narrow round trip', () => {
+    setWide(false);
+    const g = render(<Harness />);
+    openIt(g);
+    g.getByText('last').focus();
+    setWide(true);              // widened: focus stays inside the (now plain) inspector
+    g.getByText('last').focus();
+    setWide(false);             // narrowed again with the same selection open
+    esc();
+    expect(document.activeElement).toBe(opener(g)); // not #workspace
+  });
+
   it('narrowing while open becomes a modal and takes focus in (a covering overlay must not leave focus behind it)', () => {
     const g = render(<Harness />);
     openIt(g);
