@@ -143,14 +143,19 @@ export function SourceConditionTag({ condition }: { condition: SourceCondition }
 
 // ─── Identity marks ──────────────────────────────────────────────────────────
 
-/** Three staggered lanes: the trajectory ribbon, abbreviated. The middle lane is the observed one. */
-export function BrandMark({ size = 22 }: { size?: number }) {
+const LOGO_OUTER = 'M6.45 4.00 Q6.45 2.00 8.28 2.82 L15.72 6.15 Q17.55 6.97 17.53 8.97 L17.45 19.98 Q17.43 21.98 15.56 21.29 L8.33 18.60 Q6.45 17.91 6.45 15.91Z';
+const LOGO_INNER = 'M8.12 10.48 Q8.12 8.98 9.48 8.36 L12.57 6.96 Q13.94 6.35 14.02 7.84 L14.55 17.19 Q14.64 18.68 13.25 18.12 L9.51 16.61 Q8.12 16.05 8.12 14.55Z';
+
+/**
+ * The mark: two asymmetric, nested forms that leave an open frame around a small area of negative space. Observation, introspection,
+ * and the boundary between what is visible and what stays hidden. It is deliberately an independent symbol, not an illustration
+ * (and carries no evidence colour). Drawn as fine line art in the ivory ink; the inner form is a touch heavier so it holds at 24px.
+ */
+export function BrandMark({ size = 24 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden className="shrink-0">
-      <rect width="24" height="24" rx="5" className="fill-surface-2" />
-      <rect x="4" y="5.4" width="9" height="2.4" rx="1.2" className="fill-fg-1" />
-      <rect x="8" y="10.8" width="12" height="2.4" rx="1.2" className="fill-obs" />
-      <rect x="5.5" y="16.2" width="7" height="2.4" rx="1.2" className="fill-fg-1" fillOpacity=".55" />
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden fill="none" stroke="currentColor" strokeLinejoin="round" strokeLinecap="round" className="shrink-0 text-fg-1">
+      <path d={LOGO_OUTER} strokeWidth="0.95" />
+      <path d={LOGO_INNER} strokeWidth="1.2" />
     </svg>
   );
 }

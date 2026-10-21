@@ -15,7 +15,7 @@ export function AppHeader({ workspace, onWorkspace, onHelp }: {
     <header className="shrink-0 border-b border-line bg-surface-1">
       <div className="flex h-12 items-stretch gap-6 px-4">
         <div className="flex items-center gap-2.5">
-          <BrandMark />
+          <BrandMark size={24} />
           <div className="font-serif text-lg font-medium leading-none tracking-tight text-fg-1">Endophasia</div>
         </div>
 
