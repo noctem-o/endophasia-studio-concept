@@ -2,7 +2,14 @@ import { useCallback, useMemo, useState } from 'react';
 import { sessions, sessionById } from '../data/fixtures';
 import type { Session } from '../domain/types';
 
-export type WorkspaceId = 'observe' | 'compare' | 'capabilities';
+export type WorkspaceId = 'observe' | 'compare' | 'capabilities' | 'evolve';
+
+export type EvolveView =
+  | { kind: 'corpus' }
+  | { kind: 'execution'; executionId: string }
+  | { kind: 'checkpoint'; checkpointId: string }
+  | { kind: 'experiment'; experimentId: string }
+  | { kind: 'candidate'; candidateId: string };
 
 export function useStudioState() {
   const [workspace, setWorkspace] = useState<WorkspaceId>('observe');
@@ -11,6 +18,7 @@ export function useStudioState() {
   const [capabilityId, setCapabilityId] = useState<string | null>(null);
   const [compareA, setCompareA] = useState<string>(sessions[0].id);
   const [compareB, setCompareB] = useState<string>('run-6c07e4');
+  const [evolveView, setEvolveView] = useState<EvolveView>({ kind: 'corpus' });
 
   const session: Session = useMemo(
     () => sessionById(sessionId) ?? sessions[0],
@@ -49,6 +57,11 @@ export function useStudioState() {
     setEventId(id);
   }, []);
 
+  const openEvolve = useCallback((view: EvolveView) => {
+    setWorkspace('evolve');
+    setEvolveView(view);
+  }, []);
+
   return {
     // navigation
     workspace, setWorkspace,
@@ -60,6 +73,8 @@ export function useStudioState() {
     compareA, setCompareA,
     compareB, setCompareB,
     compareSessionA, compareSessionB,
+    // evolve
+    evolveView, setEvolveView, openEvolve,
     // cross-workspace
     inspectEventOf,
   };

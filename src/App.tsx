@@ -2,6 +2,7 @@ import { AppHeader, AppFooter } from './components/AppShell';
 import { ObservationWorkspace } from './workspaces/ObservationWorkspace';
 import { CompareWorkspace } from './workspaces/CompareWorkspace';
 import { CapabilitiesWorkspace } from './workspaces/CapabilitiesWorkspace';
+import { EvolveWorkspace } from './components/evolve/EvolveWorkspace';
 import { useStudioState } from './state/studio';
 
 export default function App() {
@@ -21,6 +22,7 @@ export default function App() {
         {studio.workspace === 'observe' && <ObservationWorkspace studio={studio} />}
         {studio.workspace === 'compare' && <CompareWorkspace studio={studio} />}
         {studio.workspace === 'capabilities' && <CapabilitiesWorkspace studio={studio} />}
+        {studio.workspace === 'evolve' && <EvolveWorkspace studio={studio} />}
       </main>
 
       <AppFooter />

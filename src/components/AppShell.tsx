@@ -1,4 +1,4 @@
-import { Activity, FlaskConical, GitCompareArrows, Microscope, Boxes } from 'lucide-react';
+import { Activity, FlaskConical, GitCompareArrows, Microscope, Boxes, GitBranch } from 'lucide-react';
 import type { Session } from '../domain/types';
 import { sessionStateMeta } from '../state/meta';
 import type { WorkspaceId } from '../state/studio';
@@ -7,6 +7,7 @@ const WORKSPACES: { id: WorkspaceId; label: string; icon: typeof Microscope }[] 
   { id: 'observe', label: 'Observe', icon: Microscope },
   { id: 'compare', label: 'Compare', icon: GitCompareArrows },
   { id: 'capabilities', label: 'Capabilities', icon: Boxes },
+  { id: 'evolve', label: 'Evolve', icon: GitBranch },
 ];
 
 export function AppHeader({ sessions, activeSession, workspace, onWorkspace, onSelectSession }: {
@@ -56,7 +57,7 @@ export function AppHeader({ sessions, activeSession, workspace, onWorkspace, onS
 
         <div className="mx-1 h-6 w-px bg-ink-700" />
 
-        <label className="flex items-center gap-2">
+        <label className={`flex items-center gap-2 ${workspace === 'evolve' ? 'invisible' : ''}`}>
           <span className="font-mono text-2xs uppercase tracking-widest text-ink-400">Session</span>
           <select
             value={activeSession.id}
@@ -72,9 +73,11 @@ export function AppHeader({ sessions, activeSession, workspace, onWorkspace, onS
           </select>
         </label>
 
-        <span className={`hidden shrink-0 rounded-[3px] border px-1.5 py-0.5 font-mono text-[9px] font-semibold tracking-widest sm:inline ${stateMeta.text} ${stateMeta.border} ${stateMeta.bg}`}>
-          {stateMeta.label}
-        </span>
+        {workspace !== 'evolve' && (
+          <span className={`hidden shrink-0 rounded-[3px] border px-1.5 py-0.5 font-mono text-[9px] font-semibold tracking-widest sm:inline ${stateMeta.text} ${stateMeta.border} ${stateMeta.bg}`}>
+            {stateMeta.label}
+          </span>
+        )}
 
         <div className="ml-auto flex items-center gap-3">
           <span className="hidden font-mono text-2xs text-ink-400 xl:inline">
