@@ -1,5 +1,5 @@
 import type { LineageScene } from './types';
-import type { MeasurementBlock } from './renderers/measure';
+import { MEASUREMENT_DEFINITIONS, type MeasurementBlock } from './renderers/measure';
 import type { BackendId } from './renderers';
 import { LOD_THRESHOLDS } from './interaction';
 import type { LodTier } from './interaction';
@@ -70,6 +70,22 @@ export function DiagnosticsPanel({ backend, scene, visibleCount, lod, backendDet
           </p>
         </div>
       )}
+
+      <section aria-label="What each figure is" className="border-t border-line pt-3">
+        <h3 className="eyebrow">What each figure is</h3>
+        <dl className="mt-2 space-y-2">
+          {MEASUREMENT_DEFINITIONS.map((d) => (
+            <div key={d.prefix}>
+              <dt className="font-mono text-2xs text-fg-1">{d.prefix}</dt>
+              <dd className="text-2xs leading-relaxed text-fg-3">{d.is} <span className="text-fg-2">It is {d.isNot}</span></dd>
+            </div>
+          ))}
+          <div>
+            <dt className="font-mono text-2xs text-fg-1">GPU execution · frame-present latency</dt>
+            <dd className="text-2xs leading-relaxed text-fg-3">Never measured. The main thread cannot observe either, and a software-rendered run says nothing about hardware.</dd>
+          </div>
+        </dl>
+      </section>
 
       <h3 className="border-t border-line pt-3 eyebrow">Scene PoC — heatmap</h3>
       <HeatmapPocView scene={heatmap} />

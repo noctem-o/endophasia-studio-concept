@@ -6,9 +6,9 @@
 // renderer-adapter lifecycle, backend fallback, and honest measurement.
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { render, fireEvent, cleanup, act } from '@testing-library/react';
-import { LineageExplorer, type ExplorerSceneEntry } from '../LineageExplorer';
+import { LineageExplorer } from '../LineageExplorer';
+import { explorerScenes } from '../explorerScenes';
 import { buildLineageScene } from '../lineageBuilder';
-import { makeSyntheticScene } from '../renderers/synthetic';
 import { createRenderer, isBackendAvailable } from '../renderers';
 import { measureRenderer } from '../renderers/measure';
 import { makeHeatmapPoc } from '../heatmapPoc';
@@ -31,20 +31,6 @@ beforeAll(() => {
 });
 
 afterEach(cleanup);
-
-/** Mirrors EvolveWorkspace's explorerScenes construction exactly. */
-const explorerScenes: ExplorerSceneEntry[] = (() => {
-  const built = buildLineageScene(evolveCorpus);
-  const entries: ExplorerSceneEntry[] = [];
-  if (built.scene) {
-    entries.push({ id: built.scene.sceneId, label: 'recorded lineage (synthetic programme)', scene: built.scene, synthetic: false });
-  }
-  for (const n of [100, 1000, 10000]) {
-    const s = makeSyntheticScene({ nodeCount: n, seed: n });
-    entries.push({ id: s.scene.sceneId, label: `${n} nodes`, scene: s.scene, synthetic: true });
-  }
-  return entries;
-})();
 
 describe('integration regression: stale explorer revision', () => {
   it('exports ExplorerSceneEntry and accepts the props EvolveWorkspace passes', () => {
@@ -183,12 +169,14 @@ describe('measurement honesty contract', () => {
   it('measureRenderer reports unmeasured dimensions with reasons, never invented numbers', () => {
     const scene = buildLineageScene(evolveCorpus).scene;
     if (!scene) throw new Error('corpus scene must build');
+    // No builder supplied: scene construction is UNMEASURED, so only the two renderer costs are timed. (This test used to pass a
+    // no-op builder and assert three timings, which pinned a fake scene-build measurement in place.)
     const block = measureRenderer('svg-dom', scene, {
-      buildScene: () => {},
+      buildScene: null,
       pushScene: () => {},
       pushViewport: () => {},
     });
-    expect(block.timings).toHaveLength(3);
+    expect(block.timings.map((t) => t.kind)).toEqual(['scene upload (renderer.setScene)', 'viewport apply (renderer.setViewport)']);
     for (const t of block.timings) {
       expect(t.runs).toBe(7); // 3 warm-up + 7 timed protocol
       expect(t.medianMs).toBeGreaterThanOrEqual(0);
@@ -196,6 +184,7 @@ describe('measurement honesty contract', () => {
     expect(block.fpsMeasured).toBe(false);
     expect(block.fps).toBeNull();
     const kinds = block.unmeasured.map((u) => u.kind);
+    expect(kinds).toContain('scene construction');
     expect(kinds).toContain('GPU frame time');
     expect(kinds).toContain('frame-present latency');
     for (const u of block.unmeasured) {

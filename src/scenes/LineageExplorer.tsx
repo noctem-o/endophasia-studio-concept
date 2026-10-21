@@ -4,7 +4,9 @@ import type { LineageScene } from './types';
 import type { Viewport } from './renderers/types';
 import { createRenderer, isBackendAvailable, type BackendId } from './renderers';
 import type { LineageRenderer } from './renderers/types';
-import { measureFps, measureRenderer, type MeasurementBlock } from './renderers/measure';
+import { measureFps, type MeasurementBlock } from './renderers/measure';
+import { runMeasurementPass } from './measurementPass';
+import type { ExplorerSceneEntry } from './sceneEntry';
 import {
   clampScale, filteredVisibleNodes, focusSetOf, initialInteraction, lodTier, navOrder, sceneBounds, type InteractionState,
 } from './interaction';
@@ -48,12 +50,7 @@ const TOOLBAR_INSET = 64;
 
 const PROV_KIND: Record<string, EvidenceKind> = { observed: 'OBS', reported: 'REP', derived: 'DER', 'not-applicable': 'NA' };
 
-export interface ExplorerSceneEntry {
-  id: string;
-  label: string;
-  scene: LineageScene;
-  synthetic: boolean;
-}
+export type { ExplorerSceneEntry };
 
 interface Props {
   scenes: ExplorerSceneEntry[];
@@ -293,34 +290,16 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
 
   const runMeasurements = async () => {
     if (!scene) return;
-    const blocks: MeasurementBlock[] = [];
-    for (const entry of scenes) {
-      const s = entry.scene;
-      const renderer = createRenderer(backend).renderer;
-      if (!renderer) continue;
-      const host = document.createElement('div');
-      host.style.width = '800px';
-      host.style.height = '600px';
-      host.style.position = 'absolute';
-      host.style.opacity = '0';
-      host.style.pointerEvents = 'none';
-      document.body.appendChild(host);
-      renderer.mount(host, { onNodeClick: () => {} });
-      renderer.resize(800, 600);
-      const block = measureRenderer(backend, s, {
-        buildScene: () => { void s.nodes.length; },
-        pushScene: () => renderer.setScene(s),
-        pushViewport: () => renderer.setViewport({ x: 0, y: 0, scale: 0.9 }),
-      });
-      renderer.destroy();
-      host.remove();
-      blocks.push(block);
-    }
-    setMeasurements(blocks);
+    setMeasurements(runMeasurementPass(backend, scenes));
     const live = rendererRef.current;
     if (live) {
-      const r = await measureFps(() => live.setViewport({ ...interactionRef.current.viewport, x: (interactionRef.current.viewport.x ?? 0) + 0.5 }));
-      setFps(r ?? null);
+      try {
+        const r = await measureFps(() => live.setViewport({ ...interactionRef.current.viewport, x: (interactionRef.current.viewport.x ?? 0) + 0.5 }));
+        setFps(r ?? null);
+      } finally {
+        // The probe nudges the renderer's camera; put it back exactly where the application state says it is.
+        live.setViewport(interactionRef.current.viewport);
+      }
     } else {
       setFps(null);
     }

@@ -3,9 +3,9 @@ import { Check, TriangleAlert } from 'lucide-react';
 import type { StudioState, EvolveView } from '../../state/studio';
 import { evolveCorpus, EVOLVE_NOTE } from '../../data/evolve';
 import { validateCorpus } from '../../analysis/evolve';
-import { LineageExplorer, type ExplorerSceneEntry } from '@/scenes/LineageExplorer';
+import { LineageExplorer } from '@/scenes/LineageExplorer';
+import { explorerScenes } from '@/scenes/explorerScenes';
 import { buildLineageScene } from '@/scenes/lineageBuilder';
-import { makeSyntheticScene } from '@/scenes/renderers/synthetic';
 import { Tabs } from '../../ui/controls';
 import { InspectorColumn } from '../InspectorColumn';
 import { LineageInspector } from './LineageInspector';
@@ -20,20 +20,6 @@ const sectionOf = (v: EvolveView): Section =>
   : v.kind === 'experiment' ? 'experiments'
   : v.kind === 'candidate' ? 'candidates'
   : 'checkpoints';
-
-/** Scenes for the explorer: the corpus lineage plus synthetic stress fixtures. */
-const explorerScenes: ExplorerSceneEntry[] = (() => {
-  const built = buildLineageScene(evolveCorpus);
-  const entries: ExplorerSceneEntry[] = [];
-  if (built.scene) {
-    entries.push({ id: built.scene.sceneId, label: 'recorded lineage (synthetic programme)', scene: built.scene, synthetic: false });
-  }
-  for (const n of [100, 1000, 10000]) {
-    const s = makeSyntheticScene({ nodeCount: n, seed: n });
-    entries.push({ id: s.scene.sceneId, label: `${n} nodes`, scene: s.scene, synthetic: true });
-  }
-  return entries;
-})();
 
 /**
  * The Counterfactual Laboratory: one lab, four sections, one record inspector each. The lineage graph stays mounted (and keeps
