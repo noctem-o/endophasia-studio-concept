@@ -10,8 +10,11 @@ import type { ExecutionRole, LineageRelation } from '@/domain/evolve';
 
 export const LINEAGE_SCENE_SCHEMA_VERSION = 1 as const;
 
-/** Where a node's content provably comes from. OBS/REP/DER/N-A, made explicit. */
-export type SceneProvenance = 'observed' | 'replayed' | 'derived' | 'not-applicable';
+/** Where a node's supporting evidence provably comes from: OBS/REP/DER/N-A.
+ *  This is the evidence-provenance dimension only. Continuation status
+ *  (replay, simulated projection) is a separate dimension carried on the
+ *  node's classification and relations — never conflated with provenance. */
+export type SceneProvenance = 'observed' | 'reported' | 'derived' | 'not-applicable';
 
 export type SceneNodeClassification =
   | 'baseline'
