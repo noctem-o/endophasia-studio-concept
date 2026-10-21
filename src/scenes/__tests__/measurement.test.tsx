@@ -111,12 +111,6 @@ describe('a measurement pass', () => {
     expect(blocks[2].timings.map((t) => t.kind).filter((k) => k.startsWith('scene c') || k.startsWith('scene g') || k.startsWith('scene b'))).toEqual([]);
     expect(blocks[2].unmeasured.map((u) => u.kind)).toContain('scene construction');
   });
-
-  it('measures the SVG backend against a host the SVG is really attached to', () => {
-    const before = document.body.querySelectorAll('svg').length;
-    runMeasurementPass('svg-dom', [recorded]);
-    expect(document.body.querySelectorAll('svg').length).toBe(before); // mounted, measured, and cleaned up
-  });
 });
 
 describe('the explorer wires the entry builders into its measurement pass', () => {

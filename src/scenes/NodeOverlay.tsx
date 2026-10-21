@@ -12,27 +12,31 @@ const PROV_KIND: Record<SceneProvenance, EvidenceKind> = { observed: 'OBS', repo
  * transform as the graph (`transform: scale`), so text tracks the nodes exactly at every zoom, as it does in the SVG backend.
  * Culled to the viewport; its cost is therefore separate from the GPU's, as the renderer docs require.
  */
-export function NodeOverlay({ scene, visible, viewport, size, focus, lod }: {
+export function NodeOverlay({ scene, visible, viewport, size, emphasis, lod }: {
   scene: LineageScene;
   visible: ReadonlySet<string>;
   viewport: Viewport;
   size: { w: number; h: number };
-  focus: ReadonlySet<string> | null;
+  /** Nodes kept at full emphasis (the filter, the lineage focus, or both); null = all. Every other node is DIMMED, never removed. */
+  emphasis: ReadonlySet<string> | null;
   lod: LodTier;
 }) {
-  if (lod === 'dots' || visible.size > 2000) return null;
+  // Past 2,000 nodes the text cards would cost more than they show: only the matching nodes get one.
+  const crowded = scene.nodes.length > 2000;
+  if (lod === 'dots' || (crowded && visible.size > 2000)) return null;
   const enc = scene.encoding;
   const k = viewport.scale;
   return (
     <div className="pointer-events-none absolute inset-0" aria-hidden>
       {scene.nodes
-        .filter((n) => visible.has(n.id) && scene.layout.positions[n.id])
+        .filter((n) => scene.layout.positions[n.id] && (!crowded || visible.has(n.id)))
         .map((n) => {
           const p = scene.layout.positions[n.id];
           const sx = (20 + p.column * enc.columnGap) * k + viewport.x;
           const sy = (20 + p.row * enc.rowGap) * k + viewport.y;
           if (sx < -enc.nodeWidth * k - 40 || sy < -enc.nodeHeight * k - 20 || sx > size.w + 40 || sy > size.h + 40) return null;
-          const dim = focus !== null && !focus.has(n.id);
+          // The same rule as the SVG backend: a node outside the emphasis keeps its card and is dimmed.
+          const dim = emphasis !== null && !emphasis.has(n.id);
           const tag = CLASSIFICATION_TAG[n.classification];
           const prov = PROVENANCE_BADGE[n.provenance];
           return (

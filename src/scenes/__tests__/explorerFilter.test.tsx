@@ -25,9 +25,11 @@ describe('the text filter changes what is drawn', () => {
     expect(total).toBe(recorded[0].scene.nodes.length);
     expect(dimmed(container)).toEqual([]);
     act(() => { fireEvent.change(getByLabelText('Filter nodes'), { target: { value: 'replay' } }); });
-    const dim = dimmed(container);
-    expect(dim.length).toBeGreaterThan(0);
-    expect(dim.length).toBeLessThan(total);
+    // Exactly the nodes that are neither a match nor a direct neighbour of one: "replay" matches one execution and touches one other.
+    const scene = recorded[0].scene;
+    const keep = new Set(['exec-replay1']);
+    for (const e of scene.edges) { if (e.from === 'exec-replay1') keep.add(e.to); if (e.to === 'exec-replay1') keep.add(e.from); }
+    expect(dimmed(container).sort()).toEqual(scene.nodes.map((n) => n.id).filter((id) => !keep.has(id)).sort());
     expect(nodes(container)).toHaveLength(total); // dimmed, not removed: context stays visible
     act(() => { fireEvent.change(getByLabelText('Filter nodes'), { target: { value: '' } }); });
     expect(dimmed(container)).toEqual([]);
@@ -77,5 +79,28 @@ describe('the relation toggles change what is drawn', () => {
     const dim = dimmed(container);
     act(() => { fireEvent.click(getByRole('button', { name: /^forked from/ })); });
     expect(dimmed(container)).toEqual(dim);
+  });
+});
+
+describe('a scene switch does not leak the old scene\'s selection or focus', () => {
+  const stress = explorerScenes.find((e) => e.synthetic && e.scene.nodes.length === 100)!;
+
+  it('clears a selection that the new scene does not contain, and tells the host', () => {
+    const picked: (string | null)[] = [];
+    const { getByLabelText, getByRole } = render(<LineageExplorer scenes={[...recorded, stress]} onSelectNode={(id) => picked.push(id)} />);
+    act(() => { fireEvent.keyDown(getByRole('application'), { key: 'ArrowRight' }); });
+    expect(picked.at(-1)).toMatch(/^exec-/);
+    act(() => { fireEvent.change(getByLabelText('Scene'), { target: { value: stress.id } }); });
+    expect(picked.at(-1)).toBeNull();
+  });
+
+  it('clears the lineage focus, so the new scene is not dimmed by ids it does not have', () => {
+    const { container, getByLabelText, getByRole, getByText } = render(<LineageExplorer scenes={[...recorded, stress]} />);
+    act(() => { fireEvent.keyDown(getByRole('application'), { key: 'ArrowRight' }); });
+    act(() => { fireEvent.click(getByText('focus lineage')); });
+    expect(dimmed(container).length).toBeGreaterThan(0);
+    act(() => { fireEvent.change(getByLabelText('Scene'), { target: { value: stress.id } }); });
+    expect(dimmed(container)).toEqual([]);
+    expect(getByText('focus lineage').getAttribute('aria-pressed')).toBe('false');
   });
 });

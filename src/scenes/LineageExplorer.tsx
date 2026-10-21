@@ -258,14 +258,25 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
-  // Switching scene: keep a selection in view if there is one, otherwise fit the new scene.
+  // Switching scene. A lineage focus belongs to the scene it was made in, and so does a selection: neither may leak into a scene that
+  // does not contain it (the inspector would keep showing the old scene's record beside an unrelated graph, and a stale focus set
+  // would dim every node of the new one). A selection that exists in the new scene is kept in view; otherwise the new scene is fitted.
   const firstSceneRender = useRef(true);
   useEffect(() => {
     if (firstSceneRender.current) { firstSceneRender.current = false; return; }
-    if (interactionRef.current.selection && scene?.scene.layout.positions[interactionRef.current.selection]) centerOn(interactionRef.current.selection);
+    const sel = interactionRef.current.selection;
+    const inNew = sel !== null && !!sceneRef.current?.scene.layout.positions[sel];
+    setInteraction((st) => ({ ...st, focus: null }));
+    if (sel !== null && !inNew) select(null);
+    if (inNew) centerOn(sel!);
     else fitToScene();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneId]);
+
+  // Measured figures belong to the backend that produced them (and the rAF cadence to the live renderer and scene): never carried
+  // across a switch, which would show one backend's numbers under another's name.
+  useEffect(() => { setMeasurements([]); setFps('unmeasured'); }, [backend]);
+  useEffect(() => { setFps('unmeasured'); }, [sceneId]);
 
   // ── Keyboard navigation ──────────────────────────────────────
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -362,7 +373,7 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
           />
           {/* DOM text overlay (the WebGL backend draws shapes only) */}
           {backend === 'webgl2-instanced' && (
-            <NodeOverlay scene={scene.scene} visible={visible} viewport={vp} size={size} focus={interaction.focus} lod={lod} />
+            <NodeOverlay scene={scene.scene} visible={visible} viewport={vp} size={size} emphasis={emphasis} lod={lod} />
           )}
 
           {visible.size === 0 && (

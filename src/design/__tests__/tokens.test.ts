@@ -94,10 +94,14 @@ describe('lineage node styles keep the epistemic kinds visibly apart', () => {
     expect(nodePaint('simulated-projection', { selected: false, dimmed: false }).fill.alpha).toBeLessThan(0.2);
   });
 
-  it('a simulated projection keeps its hollow fill when selected', () => {
-    expect(nodePaint('simulated-projection', { selected: true, dimmed: false }).fill.alpha).toBeLessThan(
-      nodePaint('trial', { selected: true, dimmed: false }).fill.alpha,
-    );
+  it('a selected simulated projection stays hollow and tinted: selection must not erase what the node is', () => {
+    const sim = nodePaint('simulated-projection', { selected: true, dimmed: false });
+    const trial = nodePaint('trial', { selected: true, dimmed: false });
+    expect(sim.hollow).toBe(true);
+    expect(sim.fill.alpha).toBeLessThan(0.2);
+    expect(sim.fill.hex).toBe(CLASSIFICATION_TAG['simulated-projection'].color);
+    expect(sim.fill.hex).not.toBe(trial.fill.hex);
+    expect(trial.fill.alpha).toBe(1);
   });
 
   it('selection outlines every classification in the same neutral ivory', () => {

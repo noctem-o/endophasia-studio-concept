@@ -53,7 +53,7 @@ export function DiagnosticsPanel({ backend, scene, visibleCount, lod, backendDet
         <div className="space-y-2">
           {measurements.map((m) => (
             <div key={`${m.backendId}-${m.nodeCount}`} className="rounded-ctl border border-line bg-surface-2 p-2">
-              <div className="font-mono text-2xs text-fg-1">{m.nodeCount} nodes · {m.edgeCount} edges</div>
+              <div className="font-mono text-2xs text-fg-1">{m.nodeCount} nodes · {m.edgeCount} edges <span className="text-fg-3">· {m.backendId}</span></div>
               {m.timings.map((t) => (
                 <div key={t.kind} className="mt-1 font-mono text-2xs text-fg-3">
                   {t.kind}: <span className="text-fg-1 tnum">{t.medianMs.toFixed(2)} ms</span>

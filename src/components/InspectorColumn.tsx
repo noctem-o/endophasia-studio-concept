@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { useIsWide } from './useIsWide';
 import { useModalDrawer } from './useModalDrawer';
+import { isTypingTarget } from '../state/keys';
 
 /**
  * The inspector. From the `lg` breakpoint up it is a column beside the workspace: a plain complementary region, always shown,
@@ -26,7 +27,7 @@ export function InspectorColumn({ label, open, onClose, children, width = 'lg:w-
   // At desktop widths Escape still clears whatever opened the inspector (as it always did); the modal handles its own Escape.
   useEffect(() => {
     if (!open || !wide) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !document.querySelector('dialog[open]')) onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !isTypingTarget(e.target) && !document.querySelector('dialog[open]')) onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, wide, onClose]);

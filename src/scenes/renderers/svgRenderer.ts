@@ -146,6 +146,8 @@ export function createSvgRenderer(): CreateRendererResult {
           width: NODE_W, height: NODE_H, rx: 4,
           fill: paint.fill.hex, 'fill-opacity': paint.fill.alpha,
           stroke: selected ? paint.stroke.hex : 'none', 'stroke-width': selected ? 1.5 : 0,
+          // A selected projection keeps its dashed outline (selection is the ivory colour, not a solid line).
+          ...(selected && paint.hollow ? { 'stroke-dasharray': '4 3' } : {}),
         });
         const ring = el('rect', { width: NODE_W, height: NODE_H, rx: 4, fill: 'none', stroke: paint.stroke.hex, 'stroke-opacity': selected ? 0 : paint.stroke.alpha, 'stroke-width': 1, ...(paint.hollow ? { 'stroke-dasharray': '4 3' } : {}) });
         const tagText = el('text', { x: 10, y: 17, fill: tag.color, 'font-size': 9, 'font-family': 'IBM Plex Mono, monospace', 'letter-spacing': 0.8 });

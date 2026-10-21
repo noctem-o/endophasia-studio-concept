@@ -1,6 +1,9 @@
+import { explorerScenes } from '../explorerScenes';
 import { describe, expect, it } from 'vitest';
 import {
   clampScale,
+  filteredVisibleNodes,
+  initialInteraction,
   fitViewport,
   screenFromWorld,
   sceneBounds,
@@ -125,5 +128,27 @@ describe('synthetic scenes obey the same convention', () => {
     const s = screenFromWorld(vp!, wx, wy);
     expect(s.x).toBeCloseTo(viewW / 2, 10);
     expect(s.y).toBeCloseTo(viewH / 2, 10);
+  });
+});
+
+describe('filteredVisibleNodes: context is exactly one hop from a match', () => {
+  const scene = explorerScenes.find((e) => !e.synthetic)!.scene;
+  const oneHop = (query: string) => {
+    const q = query.toLowerCase();
+    const matches = new Set(scene.nodes.filter((n) => n.label.toLowerCase().includes(q) || n.id.toLowerCase().includes(q)).map((n) => n.id));
+    const expected = new Set(matches);
+    for (const e of scene.edges) { if (matches.has(e.from)) expected.add(e.to); if (matches.has(e.to)) expected.add(e.from); }
+    return expected;
+  };
+
+  it.each(['replay', 'exec-c', 'exec-h1', 'exec-a', 'trial', 'baseline', 'simulated', 'no-such-node-anywhere'])('query "%s" shows the matches and their direct neighbours, and nothing further', (q) => {
+    const got = filteredVisibleNodes(scene, { ...initialInteraction(), query: q });
+    expect([...got].sort()).toEqual([...oneHop(q)].sort());
+  });
+
+  it('the filter never walks past one hop (it once followed edges in storage order: "replay" showed 9 of 13 nodes, including the projection)', () => {
+    const got = filteredVisibleNodes(scene, { ...initialInteraction(), query: 'replay' });
+    expect(got.size).toBe(2);
+    expect(got.has('exec-sim1')).toBe(false);
   });
 });

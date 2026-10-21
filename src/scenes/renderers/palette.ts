@@ -70,8 +70,10 @@ export function nodePaint(classification: SceneNodeClassification, state: { sele
   const k = state.dimmed ? 0.15 : 1;
   const hollow = classification === 'simulated-projection';
   if (state.selected) {
+    // Selection is the ivory outline. It must not erase what a node IS: a selected simulated projection stays hollow (a see-through
+    // tinted fill), so it can never be mistaken for a selected trial.
     return {
-      fill: { hex: RAW.hover, alpha: (hollow ? 0.55 : 1) * k },
+      fill: hollow ? { hex: CLASSIFICATION_TAG[classification].color, alpha: 0.07 * k } : { hex: RAW.hover, alpha: k },
       stroke: { hex: RAW.select, alpha: k },
       hollow,
     };

@@ -36,6 +36,12 @@ export function ObservationWorkspace({ studio }: { studio: StudioState }) {
 
   const { setEventId } = studio;
 
+  // An event the filters hide is not selected: the inspector already shows the session brief, so the selection (and the status bar
+  // that names it) is cleared rather than left pointing at something that is not shown.
+  useEffect(() => {
+    if (studio.eventId && !selected) setEventId(null);
+  }, [studio.eventId, selected, setEventId]);
+
   /** Select an event. If the filters would hide it, they are reset first: a link must never land on nothing. */
   const select = useCallback((id: string) => {
     const target = session.events.find((e) => e.id === id);

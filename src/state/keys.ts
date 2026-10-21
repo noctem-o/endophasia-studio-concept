@@ -9,5 +9,5 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 
 /** A plain key press: no Ctrl, Alt or ⌘, not aimed at a field, and no modal open over the page. Application shortcuts must pass this. */
 export function isPlainShortcut(e: KeyboardEvent): boolean {
-  return !e.ctrlKey && !e.metaKey && !e.altKey && !isTypingTarget(e.target) && !modalOpen();
+  return !e.ctrlKey && !e.metaKey && !e.altKey && !isTypingTarget(e.target) && !modalOpen() && !document.querySelector('dialog[open]');
 }
