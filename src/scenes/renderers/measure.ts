@@ -60,8 +60,10 @@ function runTimed(kind: string, op: () => void, warmup: number, runs: number): T
 }
 
 export interface SceneBuildOp {
-  /** Build the scene from corpus (scene-contract cost). */
-  buildScene: () => void;
+  /** Build the scene from corpus (scene-contract cost). Null when only the
+   * built scene is available — the metric is then reported unmeasured with
+   * that reason rather than timing a no-op. */
+  buildScene: (() => void) | null;
   /** Push a scene + initial viewport into a live renderer (scene upload cost). */
   pushScene: () => void;
   /** Push a viewport change into a live renderer (frame cost proxy). */
@@ -71,30 +73,41 @@ export interface SceneBuildOp {
 /**
  * Measure scene-build, scene-upload and viewport-apply costs. Frame rate is
  * measured only when a rAF loop is actually available and actually run —
- * otherwise it is reported unmeasured with the reason.
+ * otherwise it is reported unmeasured with the reason. A missing builder is
+ * never timed as a no-op: the figure appears under unmeasured instead.
  */
 export function measureRenderer(
   backendId: string,
   scene: LineageScene,
   op: SceneBuildOp,
 ): MeasurementBlock {
-  const timings: Timing[] = [
-    runTimed('scene build (corpus → scene)', op.buildScene, WARMUP_RUNS, MEASURED_RUNS),
+  const unmeasured: Unmeasured[] = [
+    { kind: 'GPU frame time', reason: 'not measured: performance.now() on the main thread measures CPU submission cost only — it cannot observe GPU execution, and no GPU timer query was used' },
+    { kind: 'frame-present latency', reason: 'not measured: rAF callback timing is not the compositor presenting the frame; the main thread cannot observe presentation' },
+    { kind: 'memory footprint', reason: 'not measured: performance.memory is non-standard and absent in most browsers' },
+    { kind: 'text overlay cost', reason: 'not measured for this block: overlay rendering is driven by the interaction layer, not the scene push' },
+  ];
+
+  const timings: Timing[] = [];
+  if (op.buildScene) {
+    timings.push(runTimed('scene build (corpus → scene)', op.buildScene, WARMUP_RUNS, MEASURED_RUNS));
+  } else {
+    unmeasured.push({
+      kind: 'scene build (corpus → scene)',
+      reason: 'not measured: this scene arrived already built and no builder was supplied, so there is no construction operation to time — timing a property lookup would be a fake measurement',
+    });
+  }
+  timings.push(
     runTimed('scene upload (renderer.setScene)', op.pushScene, WARMUP_RUNS, MEASURED_RUNS),
     runTimed('viewport apply (renderer.setViewport)', op.pushViewport, WARMUP_RUNS, MEASURED_RUNS),
-  ];
+  );
 
   return {
     backendId,
     nodeCount: scene.nodes.length,
     edgeCount: scene.edges.length,
     timings,
-    unmeasured: [
-      { kind: 'GPU frame time', reason: 'not measured: performance.now() on the main thread measures CPU submission cost only — it cannot observe GPU execution, and no GPU timer query was used' },
-      { kind: 'frame-present latency', reason: 'not measured: rAF callback timing is not the compositor presenting the frame; the main thread cannot observe presentation' },
-      { kind: 'memory footprint', reason: 'not measured: performance.memory is non-standard and absent in most browsers' },
-      { kind: 'text overlay cost', reason: 'not measured for this block: overlay rendering is driven by the interaction layer, not the scene push' },
-    ],
+    unmeasured,
     fpsMeasured: false,
     fps: null,
     measuredAt: new Date().toISOString(),

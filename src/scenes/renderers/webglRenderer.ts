@@ -19,8 +19,9 @@ import { worldFromScreen } from '../interaction';
  *
  * Camera convention (identical to SVG backend and CPU hit-testing):
  *   screen = world * scale + offset — in CSS pixels. The drawing buffer is
- * DPR × CSS size; uResolution is the buffer size, and mouse positions (CSS
- * px) are converted to buffer pixels with the same DPR before mapping.
+ * DPR × CSS size; gl.viewport works in buffer pixels, while uResolution is
+ * the CSS-pixel size so the clip mapping matches SVG and hit-testing at any
+ * DPR. Mouse positions (CSS px) map directly, no DPR conversion.
  */
 
 const NODE_W = 178;
@@ -186,6 +187,8 @@ export function createWebglRenderer(): CreateRendererResult {
   let selection: string | null = null;
   let highlight: Set<string> | null = null;
   let dpr = 1;
+  let cssW = 0;
+  let cssH = 0;
   let resizeObserver: ResizeObserver | null = null;
   let contextLost = false;
 
@@ -199,6 +202,7 @@ export function createWebglRenderer(): CreateRendererResult {
   let quadFillBuf: WebGLBuffer | null = null;
   let quadStrokeBuf: WebGLBuffer | null = null;
   let quadSelBuf: WebGLBuffer | null = null;
+  let quadCornerBuf: WebGLBuffer | null = null;
   let lineBuf: WebGLBuffer | null = null;
   let instanceCount = 0;
   let lineVertexCount = 0;
@@ -224,7 +228,7 @@ export function createWebglRenderer(): CreateRendererResult {
     lineProgram = null;
     quadVao = null;
     lineVao = null;
-    quadOriginBuf = quadSizeBuf = quadFillBuf = quadStrokeBuf = quadSelBuf = lineBuf = null;
+    quadOriginBuf = quadSizeBuf = quadFillBuf = quadStrokeBuf = quadSelBuf = quadCornerBuf = lineBuf = null;
     instanceCount = 0;
     lineVertexCount = 0;
     gpuNodes = [];
@@ -232,14 +236,19 @@ export function createWebglRenderer(): CreateRendererResult {
 
   const draw = () => {
     if (!gl || !canvas || contextLost || !quadProgram || !lineProgram) return;
+    if (cssW <= 0 || cssH <= 0) return;
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clearColor(0.039, 0.055, 0.071, 1); // ink-950
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
-    const resW = canvas.width;
-    const resH = canvas.height;
+    // uResolution is the CSS-pixel size, not the buffer size: the camera
+    // produces CSS-pixel screen coordinates (same as SVG and hit-testing),
+    // and the clip mapping must divide by CSS size to agree at any DPR.
+    // gl.viewport above handles the buffer-pixel mapping.
+    const resW = cssW;
+    const resH = cssH;
 
     gl.useProgram(lineProgram);
     gl.uniform2f(gl.getUniformLocation(lineProgram, 'uResolution'), resW, resH);
@@ -261,10 +270,33 @@ export function createWebglRenderer(): CreateRendererResult {
     gl.bindVertexArray(null);
   };
 
+  function untrackBuffer(b: WebGLBuffer | null): void {
+    if (!b) return;
+    const i = resources.buffers.indexOf(b);
+    if (i >= 0) resources.buffers.splice(i, 1);
+  }
+
+  /** Delete the per-scene geometry (VAOs + buffers). Called before every
+   * scene upload so repeated setScene calls do not retain GPU objects;
+   * programs and shaders live for the renderer's lifetime. */
+  function releaseSceneGeometry(): void {
+    if (!gl) return;
+    if (quadVao) gl.deleteVertexArray(quadVao);
+    if (lineVao) gl.deleteVertexArray(lineVao);
+    for (const b of [quadCornerBuf, quadOriginBuf, quadSizeBuf, quadFillBuf, quadStrokeBuf, quadSelBuf, lineBuf]) {
+      if (b) gl.deleteBuffer(b);
+      untrackBuffer(b);
+    }
+    quadVao = lineVao = null;
+    quadCornerBuf = quadOriginBuf = quadSizeBuf = quadFillBuf = quadStrokeBuf = quadSelBuf = lineBuf = null;
+    instanceCount = 0;
+    lineVertexCount = 0;
+    gpuNodes = [];
+  }
+
   function uploadQuadGeometry(nodes: GpuNode[]): void {
     if (!gl || !quadProgram) return;
     const n = nodes.length;
-
     const origins = new Float32Array(n * 2);
     const sizes = new Float32Array(n * 2);
     const fills = new Float32Array(n * 4);
@@ -286,14 +318,14 @@ export function createWebglRenderer(): CreateRendererResult {
       sels[i] = selected ? 1 : 0;
     }
 
-    if (quadVao) gl.deleteVertexArray(quadVao);
+    if (quadVao) return;
     quadVao = trackVao(gl.createVertexArray());
     if (!quadVao) return;
     gl.bindVertexArray(quadVao);
 
     const corners = new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]);
-    const cornerBuf = trackBuffer(gl.createBuffer());
-    gl.bindBuffer(gl.ARRAY_BUFFER, cornerBuf);
+    quadCornerBuf = trackBuffer(gl.createBuffer());
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadCornerBuf);
     gl.bufferData(gl.ARRAY_BUFFER, corners, gl.STATIC_DRAW);
     const loc = gl.getAttribLocation(quadProgram, 'aCorner');
     gl.enableVertexAttribArray(loc);
@@ -329,7 +361,6 @@ export function createWebglRenderer(): CreateRendererResult {
 
   function buildLineGeometry(edges: LineageScene['edges'], pos: LineageScene['layout']['positions']): void {
     if (!gl || !lineProgram) return;
-    if (lineVao) gl.deleteVertexArray(lineVao);
     lineVao = trackVao(gl.createVertexArray());
     if (!lineVao) return;
     gl.bindVertexArray(lineVao);
@@ -367,6 +398,7 @@ export function createWebglRenderer(): CreateRendererResult {
 
   function rebuildAll(): void {
     if (!scene) return;
+    releaseSceneGeometry();
     gpuNodes = [];
     for (const sn of scene.nodes) {
       const p = scene.layout.positions[sn.id];
@@ -482,6 +514,8 @@ export function createWebglRenderer(): CreateRendererResult {
     },
     resize(w, h) {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
+      cssW = w;
+      cssH = h;
       if (canvas) {
         canvas.width = Math.floor(w * dpr);
         canvas.height = Math.floor(h * dpr);
@@ -503,6 +537,8 @@ export function createWebglRenderer(): CreateRendererResult {
       resizeObserver?.disconnect();
       resizeObserver = null;
       releaseAll();
+      cssW = 0;
+      cssH = 0;
       canvas?.remove();
       canvas = null;
       gl = null;
