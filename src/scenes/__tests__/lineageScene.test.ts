@@ -92,9 +92,10 @@ describe('buildLineageScene', () => {
     expect(scene!.missing.nonResultNodeIds).toContain('exec-sim1');
   });
 
-  it('marks cassette replay as replayed', () => {
+  it('keeps replay status out of provenance: the replay node\'s evidence is observed (session recorded), its classification is replay', () => {
     const replay = scene!.nodes.find((n) => n.id === 'exec-replay1');
-    expect(replay!.provenance).toBe('replayed');
+    expect(replay!.provenance).toBe('observed');
+    expect(replay!.classification).toBe('replay');
   });
 
   it('sessionless nodes are listed as missing, never fabricated', () => {
@@ -104,9 +105,33 @@ describe('buildLineageScene', () => {
     }
   });
 
-  it('provenance covers every node exactly once', () => {
-    const valid = ['observed', 'replayed', 'derived', 'not-applicable'] as const;
+  it('provenance covers every node exactly once (OBS/REP/DER/N-A evidence vocabulary)', () => {
+    const valid = ['observed', 'reported', 'derived', 'not-applicable'] as const;
     for (const node of scene!.nodes) expect(valid).toContain(node.provenance);
+  });
+
+  it('arm membership keys on execution ids from the corpus, not the arm id', () => {
+    const r1 = scene!.nodes.find((n) => n.id === 'exec-r1');
+    const ctx1 = scene!.nodes.find((n) => n.id === 'exec-ctx1');
+    expect(r1!.armIds).toContain('arm-retry-b');
+    expect(ctx1!.armIds).toContain('arm-ctx-hi');
+    for (const node of scene!.nodes) {
+      for (const aid of node.armIds) {
+        const arm = evolveCorpus.arms.find((a) => a.id === aid);
+        expect(arm, `${node.id} -> ${aid}`).toBeDefined();
+        expect(arm!.executionIds).toContain(node.id);
+      }
+    }
+  });
+
+  it('rejects duplicate execution ids with errors', () => {
+    const dup: typeof evolveCorpus = {
+      ...evolveCorpus,
+      executions: [...evolveCorpus.executions, evolveCorpus.executions[0]],
+    };
+    const result = buildLineageScene(dup);
+    expect(result.scene).toBeNull();
+    expect(result.issues.some((i) => i.message.includes('duplicate execution id'))).toBe(true);
   });
 });
 
