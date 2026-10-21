@@ -6,7 +6,7 @@ An interactive design exploration of a **research workstation for observing AI c
 
 ## What it does
 
-The studio is organised as three workspaces over a shared session registry:
+The studio is organised as four workspaces over a shared session registry:
 
 ### Observe
 
@@ -36,6 +36,17 @@ What the runtime declared versus what the record actually shows:
 - **Session usage** — the events that exercised the capability, linked back to the observation view.
 - **Source ledger** — the independent sources behind the records (event log, registries, usage ledger), each with its recorded condition: readable, empty, absent, degraded, or unopenable.
 
+### Evolve — the Counterfactual Laboratory
+
+An experiment-programme surface over the observation registry: execution lineage, forkable checkpoints, controlled experiments, candidate evolution, and gated promotion — all derived from typed records, none authored as dashboard numbers.
+
+- **Lineage canvas** — a layered graph of execution records connected only by typed relations (forked from, replay of, candidate of, evaluated against, simulated branch). Executions whose trajectory is not in the observation registry render an explicit gap marker instead of a session link.
+- **Checkpoints** — each carries five recorded artifacts (workspace snapshot, conversation prefix, tool definitions, environment pin, response cassette), and **forkability is derived** from what is present, never asserted: a checkpoint missing its conversation prefix simply cannot support a new continuation, and the interface says so rather than offering a fork.
+- **Continuation kinds kept apart** — replayed (recorded responses held fixed; says nothing about the model), recorded (a genuinely new run), simulated (a projection, never a real result, excluded from all aggregates and carrying no usage).
+- **Experiments** — declared coordinates on every execution: each of the 19 coordinates (model, checkpoint, quantisation, harness, wire dialect, cognition policy, sampling policy, environment, task set, evaluator, seed, repetitions, holdout, …) is recorded or explicitly UNAVAILABLE with a reason. The **comparability inspector** classifies each coordinate as matched, changed (declared manipulation or not), or unmatched, and refuses a verdict when the arms are not fully comparable.
+- **Results derived from trial records** — pass rates with denominators and Wilson score intervals at 95% (the width shown, not just the centre), usage medians with missing rows counted as missing and never zeroed. An unavailable check enters neither side of the denominator: a failed evaluator run is not a failed task, and an environment failure is not a reward of 0.
+- **Promotion sequence** — observed → proposed → isolated → evaluated → compared → reviewed → authorised → promoted, each stage a separate recorded decision. Evaluation success never implies authorisation; authorisation never implies promotion. The demo corpus includes a candidate blocked at review *after* a good evaluation, and a promotion recorded with its holdout caveat (1 of 3 holdout trials completed).
+
 ## The epistemic rules
 
 These are enforced in the domain types and validated by the test suite:
@@ -63,13 +74,22 @@ These are enforced in the domain types and validated by the test suite:
 src/
   domain/types.ts        Canonical contracts: evidence, usage presence,
                          events, interventions, sessions
-  data/fixtures/         Six synthetic scenarios + shared builders
+  domain/evolve.ts       EVOLVE contracts: coordinates, lineage, checkpoints,
+                         candidates, experiments, trials, promotion records
+  data/fixtures/         Six synthetic observation scenarios + builders
+  data/evolve/           Synthetic experiment programme: lineage, experiments,
+                         trials, promotion records
   analysis/compare.ts    Deterministic alignment, session statistics,
                          fixture validation
+  analysis/evolve.ts     Comparability inspection, lineage validation,
+                         Wilson intervals, cell statistics
   state/                 Workspace state hook + design-system metadata
   components/            UI kit: primitives, evidence list, JSON tree,
                          trajectory ribbon, event inspector
-  workspaces/            Observe / Compare / Capabilities
+  components/evolve/     Lineage canvas, checkpoint panel, experiment and
+                         candidate views, trial drill-down
+  workspaces/            Observe / Compare / Capabilities (Evolve lives in
+                         components/evolve)
 ```
 
 The fixture layer is deliberately separated from the domain types: a future implementation replaces the fixtures with a loader over validated observation projections, and the `Session` shape is the contract.
@@ -79,9 +99,12 @@ The fixture layer is deliberately separated from the domain types: a future impl
 ```bash
 npm run lint        # eslint, clean
 npm run typecheck   # tsc --noEmit, clean
-npx vitest run      # 29 tests: per-session fixture validation, alignment
-                    # semantics, missing-usage invariants, intervention
-                    # lifecycle stage sequences
+npx vitest run      # 64 tests: fixture validation, alignment semantics,
+                    # missing-usage invariants, intervention lifecycles, and
+                    # the EVOLVE suite — coordinate declarations, comparability
+                    # verdicts, Wilson-interval math, cell statistics with
+                    # honest denominators, corpus referential integrity,
+                    # checkpoint forkability, promotion-stage ordering
 npm run build       # production build
 ```
 
@@ -97,6 +120,7 @@ The test suite checks the epistemic rules directly: every session passes structu
 ## Limitations
 
 - All data is synthetic and hand-authored; nothing is ingested from a real runtime.
+- The EVOLVE corpus is a demonstration programme: cells are small (1–6 trials), the intervals are wide, and the interface shows them wide.
 - The alignment model compares recorded kinds, tools, and a small set of compared fields only — no semantic analysis of request or response content.
 - The interface is read-only by design: this is an observation surface, not an intervention surface.
 - Session validation covers structural consistency, not semantic plausibility of the fixture content.
