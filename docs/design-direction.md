@@ -55,7 +55,7 @@ as an SVG-only extra. Neither backend's resource management, coordinate transfor
 
 - The WebGL node shader draws a thicker border at the left and right than at the top and bottom (`ring` is a fraction of the node
   size). It is unchanged: shader work was out of scope.
-- WebGL was verified only under a software rasteriser. Under tritanopia the WebGL relation lines are weak (evaluated-against and
+- WebGL was verified only under a software rasteriser (locally, and in CI), never on a physical GPU. Under tritanopia the WebGL relation lines are weak (evaluated-against and
   replay are both pale cyan-greens); the key, the toggles and the inspector name each relation.
-- Below 1024px the inspectors are drawers; the overview and the Compare map are designed for desktop and laptop widths.
+- Below 1024px the inspectors are modal dialogs (focus moves in and returns, Tab is trapped, the page is inert, and the page shortcuts stand down); the overview and the Compare map are designed for desktop and laptop widths.
 - The lineage layout (layered longest-path) is the scene's declared algorithm and is unchanged, so long edges still cross.

@@ -94,6 +94,8 @@ src/
                          components (observe/, compare/, capabilities/, evolve/)
   workspaces/            Observe / Compare / Capabilities (Evolve lives in
                          components/evolve)
+e2e/                     Playwright browser suite (see Verification)
+.github/workflows/       CI
 ```
 
 The fixture layer is deliberately separated from the domain types: a future implementation replaces the fixtures with a loader over validated observation projections, and the `Session` shape is the contract.
@@ -101,15 +103,23 @@ The fixture layer is deliberately separated from the domain types: a future impl
 ### Verification
 
 ```bash
-npm run lint           # eslint: 0 errors (1 pre-existing fast-refresh warning)
-npm run typecheck      # tsc --noEmit
-npm test               # 246 tests, 13 files (see below)
+npm ci                 # the lockfile is committed; Node ^22.22.2 (see .nvmrc and package.json "engines")
+npm run typecheck      # tsc --noEmit for the app and for e2e/
+npm run lint           # eslint: no errors, no warnings
+npm test               # 284 tests, 16 files (see below)
 npm run build          # production build
 npm run audit:classes  # after a build: fails if a colour/shadow utility used in
                        # src/ generated no CSS (Tailwind drops unknown classes silently)
+npm run test:e2e       # builds, serves it with `vite preview`, and runs the Playwright
+                       # browser suite in Chromium at DPR 1 and DPR 2
 ```
 
-The suite checks the epistemic rules directly: every session passes structural validation, no session presents missing usage as present, alignment is deterministic (exact matches are never conflated with proposed correspondences, and different event kinds are never paired), checkpoint forkability and comparability verdicts are derived, and the Wilson tick lies inside its interval for every arm cell. It also pins the design system: every informational colour clears a 4.5:1 contrast floor, the lineage relation and execution-kind colours stay perceptually distinguishable (OKLab ΔE ≥ 0.08), the renderer palette and Tailwind read the same tokens, and a simulated projection can never share a node style with a trial or a baseline. Application-level tests drive the real app: workspace keys, the synthetic marker in every workspace, `j`/`k` over a filtered list, and what the Compare and Capabilities inspectors decline to claim.
+`.github/workflows/ci.yml` runs all of these on every pull request and push to `main`: one job for the first six, one for the
+browser suite (with `E2E_REQUIRE_WEBGL=1`, so the job fails rather than skipping the WebGL tests if WebGL2 cannot initialise).
+
+The Vitest suite checks the epistemic rules directly: every session passes structural validation, no session presents missing usage as present, alignment is deterministic (exact matches are never conflated with proposed correspondences, and different event kinds are never paired), checkpoint forkability and comparability verdicts are derived, and the Wilson tick lies inside its interval for every arm cell. It also pins the design system: every informational colour clears a 4.5:1 contrast floor, the lineage relation and execution-kind colours stay perceptually distinguishable (OKLab ΔE ≥ 0.08), the renderer palette and Tailwind read the same tokens, and a simulated projection can never share a node style with a trial or a baseline. Application-level tests drive the real app: workspace keys, the synthetic marker in every workspace, `j`/`k` over a filtered list, and what the Compare and Capabilities inspectors decline to claim. The measurement harness is held to the same standard: scene construction is timed only when the operation provably builds the displayed scene.
+
+The browser suite (`e2e/`) asserts what a jsdom test cannot: that the SVG backend really attaches and draws one group per node and one path per edge; that clicking the centre of each node selects exactly that node (hit-testing agrees with the drawing); that pan, zoom and fit move the camera; that the filter and relation toggles change what is drawn; that switching renderer keeps the selection and puts the same node in the same place; that WebGL2, where it initialises, really renders (judged from a composited screenshot, never a post-present buffer readback) and recovers from a lost context; that every workspace fits at 1280×800, 1440×900, 1920×1080 and 1024×768; and that the narrow-screen inspector is a real modal (focus in, Tab trapped, page inert, Escape and focus return). Every test also fails on any console error, failed request, or request that leaves the origin. The SVG tests pass with or without WebGL2. On failure it keeps screenshots and traces.
 
 ## Design decisions
 
@@ -125,5 +135,5 @@ The suite checks the epistemic rules directly: every session passes structural v
 - The alignment model compares recorded kinds, tools, and a small set of compared fields only — no semantic analysis of request or response content.
 - The interface is read-only by design: this is an observation surface, not an intervention surface.
 - Session validation covers structural consistency, not semantic plausibility of the fixture content.
-- WebGL was verified only under a software rasteriser (SwiftShader) in headless Chromium, not on a physical GPU. The WebGL backend draws edges solid, so there a relation is told apart by colour alone; the key, the toggles and the inspector name each one. The WebGL node shader draws a thicker border on the left and right than on the top and bottom; that is unchanged (shader work is out of scope).
+- WebGL was verified only under a software rasteriser (SwiftShader) in headless Chromium, locally and in CI, never on a physical GPU: that is correctness evidence, not a performance measurement. The diagnostics panel reports CPU time on the main thread only; GPU execution and frame-present latency are never measured. The WebGL backend draws edges solid, so there a relation is told apart by colour alone; the key, the toggles and the inspector name each one. The WebGL node shader draws a thicker border on the left and right than on the top and bottom; that is unchanged (shader work is out of scope).
 - The SVG backend rebuilds its whole scene on every selection change (unchanged; its cost is what the diagnostics panel measures).

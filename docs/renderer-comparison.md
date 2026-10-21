@@ -15,10 +15,13 @@ The in-app diagnostics panel ("run measurement pass on all scenes") measures,
 per backend and per scene (recorded lineage, 100, 1,000, 10,000 synthetic
 nodes):
 
-- scene build time (corpus → scene)
+- scene build time (corpus → scene), or scene generation time for a synthetic fixture — **only where the scene's own builder is
+  supplied and verified** to reconstruct exactly the displayed scene (content digests equal); otherwise reported unmeasured with
+  the reason. (Earlier versions timed a property lookup under this label; see the correction in `phase-4-architecture.md`.)
 - scene upload time (`renderer.setScene`)
 - viewport apply time (`renderer.setViewport`)
 
+All of these are CPU time on the main thread. The panel states what each figure is and is not beside the numbers.
 Protocol: 3 untimed warm-up runs, then 7 timed runs; median, min and max
 reported. FPS is measured only from a real rAF loop, and only when one was
 run — and it is reported as **rAF callback cadence**, which is neither GPU
