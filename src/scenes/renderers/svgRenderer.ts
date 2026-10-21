@@ -1,6 +1,7 @@
 import type { LineageScene } from '../types';
 import type { CreateRendererResult, LineageRenderer, RendererEventHandlers, RendererInfo, Viewport } from './types';
 import { CLASSIFICATION_TAG, PROVENANCE_BADGE, RAW, RELATION_STYLE_HEX } from './palette';
+import { worldFromScreen } from '../interaction';
 
 /**
  * SVG DOM backend: one <g> per node, one <path> per edge, direct DOM.
@@ -41,6 +42,7 @@ export function createSvgRenderer(): CreateRendererResult {
 
   let edgeLayer: SVGGElement | null = null;
   let nodeLayer: SVGGElement | null = null;
+  let rootGroup: SVGGElement | null = null;
   let nodeEls = new Map<string, SVGGElement>();
 
   const info: RendererInfo = {
@@ -50,18 +52,17 @@ export function createSvgRenderer(): CreateRendererResult {
   };
 
   const applyTransform = () => {
-    if (svg) svg.setAttribute('transform', `translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`);
+    // Convention: screen = world * scale + offset. Applied to the content
+    // group — the outer <svg> is a fixed-size viewport element and ignores a
+    // transform attribute of this form.
+    if (rootGroup) rootGroup.setAttribute('transform', `translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`);
   };
 
   const worldFromEvent = (cx: number, cy: number): { x: number; y: number } | null => {
-    if (!host || !svg) return null;
+    if (!host) return null;
     const rect = host.getBoundingClientRect();
-    const sx = cx - rect.left;
-    const sy = cy - rect.top;
-    return {
-      x: (sx - viewport.x) / viewport.scale,
-      y: (sy - viewport.y) / viewport.scale,
-    };
+    // Convention-shared inverse mapping, in CSS pixels.
+    return worldFromScreen(viewport, cx - rect.left, cy - rect.top);
   };
 
   const renderer: LineageRenderer = {
@@ -71,12 +72,12 @@ export function createSvgRenderer(): CreateRendererResult {
       handlers = eventHandlers;
       svg = el('svg', { width: '100%', height: '100%', role: 'img' });
       if (svg) svg.style.display = 'block';
-      const root = el('g', { 'aria-label': 'lineage scene' });
+      rootGroup = el('g', { 'aria-label': 'lineage scene' });
       edgeLayer = el('g', {});
       nodeLayer = el('g', {});
-      root.appendChild(edgeLayer);
-      root.appendChild(nodeLayer);
-      svg.appendChild(root);
+      rootGroup.appendChild(edgeLayer);
+      rootGroup.appendChild(nodeLayer);
+      svg.appendChild(rootGroup);
 
       h.addEventListener('click', (ev: MouseEvent) => {
         const nodeId = renderer.hitTest(ev.clientX, ev.clientY);
@@ -208,6 +209,9 @@ export function createSvgRenderer(): CreateRendererResult {
       if (svg) svg.remove();
       svg = null;
       host = null;
+      rootGroup = null;
+      nodeLayer = null;
+      edgeLayer = null;
       nodeEls = new Map();
       void width;
       void height;

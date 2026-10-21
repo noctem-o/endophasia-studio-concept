@@ -135,3 +135,43 @@ export function navOrder(scene: LineageScene): string[] {
 export function clampScale(scale: number): number {
   return Math.min(4, Math.max(0.05, scale));
 }
+
+// ─── Coordinate convention (the single documented mapping) ───────────────────
+//
+//   screen = world * scale + offset
+//
+// `offset` is viewport.x/.y in CSS pixels; `scale` is unitless. Every backend
+// (SVG group transform, WebGL camera uniform, CPU hit-testing, pan and zoom
+// about the cursor, fit, zoom-to-selection, minimap) must go through these two
+// pure functions. screenFromWorld ∘ worldFromScreen is the identity.
+
+export function screenFromWorld(vp: Viewport, wx: number, wy: number): { x: number; y: number } {
+  return { x: wx * vp.scale + vp.x, y: wy * vp.scale + vp.y };
+}
+
+export function worldFromScreen(vp: Viewport, sx: number, sy: number): { x: number; y: number } {
+  return { x: (sx - vp.x) / vp.scale, y: (sy - vp.y) / vp.scale };
+}
+
+/** Zoom keeping the world point under the cursor stationary. */
+export function zoomAbout(vp: Viewport, nextScale: number, screenX: number, screenY: number): Viewport {
+  const s = clampScale(nextScale);
+  const before = worldFromScreen(vp, screenX, screenY);
+  return { scale: s, x: screenX - before.x * s, y: screenY - before.y * s };
+}
+
+/** Center the viewport on a node's world rect at a target scale. */
+export function zoomToNode(
+  scene: LineageScene,
+  nodeId: string,
+  viewW: number,
+  viewH: number,
+  targetScale = 1,
+): Viewport | null {
+  const p = scene.layout.positions[nodeId];
+  if (!p) return null;
+  const wx = 20 + p.column * scene.encoding.columnGap + scene.encoding.nodeWidth / 2;
+  const wy = 20 + p.row * scene.encoding.rowGap + scene.encoding.nodeHeight / 2;
+  const s = clampScale(targetScale);
+  return { scale: s, x: viewW / 2 - wx * s, y: viewH / 2 - wy * s };
+}

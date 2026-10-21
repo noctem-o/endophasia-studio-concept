@@ -90,7 +90,8 @@ export function measureRenderer(
     edgeCount: scene.edges.length,
     timings,
     unmeasured: [
-      { kind: 'GPU frame time', reason: 'not measured: requires a live compositor loop under controlled load; no rAF loop was run for this block' },
+      { kind: 'GPU frame time', reason: 'not measured: performance.now() on the main thread measures CPU submission cost only — it cannot observe GPU execution, and no GPU timer query was used' },
+      { kind: 'frame-present latency', reason: 'not measured: rAF callback timing is not the compositor presenting the frame; the main thread cannot observe presentation' },
       { kind: 'memory footprint', reason: 'not measured: performance.memory is non-standard and absent in most browsers' },
       { kind: 'text overlay cost', reason: 'not measured for this block: overlay rendering is driven by the interaction layer, not the scene push' },
     ],
@@ -100,7 +101,15 @@ export function measureRenderer(
   };
 }
 
-/** rAF-based FPS probe over a live renderer. Returns null if the loop cannot run. */
+/**
+ * rAF-based FPS probe over a live renderer. Returns null if the loop cannot
+ * run. Honesty note: this measures the interval between successive
+ * requestAnimationFrame callbacks while the page is driven by the probe
+ * itself — an upper-bound proxy for interactive frame rate, NOT the frame's
+ * GPU execution time and NOT the compositor's frame-present latency, neither
+ * of which the main thread can observe. It is reported as "rAF cadence" for
+ * that reason wherever it is displayed.
+ */
 export function measureFps(step: () => void, frames = 60): Promise<{ median: number; min: number } | null> {
   return new Promise((resolve) => {
     if (typeof requestAnimationFrame !== 'function') {
