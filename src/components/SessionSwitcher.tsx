@@ -68,11 +68,11 @@ export function SessionSwitcher({ sessions, value, onChange, label = 'Recorded s
         aria-controls={open ? listId : undefined}
         aria-label={`${label}: ${current.id}`}
         onClick={() => setOpen((o) => !o)}
-        className="group flex h-9 max-w-full items-center gap-2.5 rounded-ctl border border-line bg-surface-2 pl-3 pr-2 text-left transition-colors duration-100 hover:border-line-strong"
+        className="group flex h-9 max-w-[min(100%,360px)] items-center gap-2.5 rounded-ctl border border-line bg-surface-2 pl-3 pr-2 text-left transition-colors duration-100 hover:border-line-strong"
       >
         <span className="font-mono text-xs font-medium text-fg-1">{current.id}</span>
-        <span className="hidden min-w-0 truncate text-xs text-fg-2 md:inline">{current.label}</span>
-        <span className={`hidden shrink-0 rounded-tag border px-1.5 font-mono text-2xs tracking-wider lg:inline ${st.text} ${st.border} ${st.bg}`}>{st.label}</span>
+        <span className="hidden min-w-0 flex-1 truncate text-xs text-fg-2 md:inline">{current.label}</span>
+        <span className={`hidden shrink-0 rounded-tag border px-1.5 font-mono text-2xs tracking-wider 2xl:inline ${st.text} ${st.border} ${st.bg}`}>{st.label}</span>
         <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-fg-3 group-hover:text-fg-1" aria-hidden />
       </button>
 

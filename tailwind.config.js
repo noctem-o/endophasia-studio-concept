@@ -35,13 +35,6 @@ export default {
         select: t.select,
         // Structure, not evidence: the colour a replay is drawn in (graph nodes, edges, tags).
         replay: t.classification.replay,
-        // TRANSITIONAL aliases so unconverted screens keep rendering while workspaces are rebuilt one by one.
-        // Removed when the last workspace is converted; `npm run audit:classes` and a grep prove none remain.
-        ink: { 950: t.surface['0'], 900: t.surface['1'], 850: t.surface['1'], 800: t.surface['2'], 750: t.surface['3'], 700: t.line.DEFAULT, 600: t.line.strong, 500: t.fg['4'], 400: t.fg['3'], 300: t.fg['3'], 200: t.fg['2'], 100: t.fg['1'], 50: t.fg['1'] },
-        teal: { accent: t.provenance.OBS, dim: t.provenance.OBS, muted: t.provenance.OBS },
-        blue: { accent: t.provenance.REP, muted: t.provenance.REP },
-        amber: { accent: t.attention, muted: t.attention },
-        red: { accent: t.fault, muted: t.fault },
       },
       fontSize: {
         // Floor of 11px for anything that carries information.
