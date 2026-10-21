@@ -173,3 +173,16 @@ describe('Evolve', () => {
     expect(document.body.textContent).toContain('no verdicts');
   });
 });
+
+describe('drawers are never a trap', () => {
+  it('Escape closes the Experiments details drawer', () => {
+    const { getByRole } = render(<App />);
+    press('4');
+    act(() => { fireEvent.click(getByRole('tab', { name: /Experiments/ })); });
+    act(() => { fireEvent.click(getByRole('button', { name: /design & trial details/ })); });
+    const drawer = () => document.querySelector('aside[aria-label="Trial inspector"]') as HTMLElement;
+    expect(drawer().className).toContain('fixed');
+    press('Escape');
+    expect(drawer().className).not.toContain('fixed');
+  });
+});

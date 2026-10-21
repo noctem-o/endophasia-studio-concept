@@ -17,7 +17,7 @@ function statusContext(studio: StudioState): string {
       return e ? `${studio.session.id} · event ${e.seq} of ${n} · ${e.title}` : `${studio.session.id} · ${n} events in storage order · nothing selected`;
     }
     case 'compare':
-      return `A ${studio.compareSessionA.id} · B ${studio.compareSessionB.id} · alignment is proposed, never verified`;
+      return `A ${studio.compareSessionA.id} · B ${studio.compareSessionB.id} · aligned by a stated method; no link is a verified equivalence`;
     case 'capabilities':
       return `${studio.session.id} · ${studio.selectedCapability?.name ?? studio.session.capabilities[0]?.name ?? 'no capability'}`;
     case 'evolve': {

@@ -17,8 +17,10 @@ const linkPath = (ya: number, yb: number) => {
 
 /**
  * The two trajectories side by side, each in its OWN storage order, with the alignment drawn between them.
+ * The three link kinds are told apart by FORM alone (solid, dashed, open stub), in neutral ink: exact and proposed are both outputs
+ * of the same declared method, so painting one in a provenance hue would assert a provenance difference the method does not make.
  *   exact       solid ivory link
- *   proposed    dashed violet link (a derived hypothesis, never the look of an exact match)
+ *   proposed    dashed link, one tier dimmer (an unverified pairing, never the look of an exact match)
  *   unmatched   an open stub that goes nowhere: there is no link to draw
  * A marker on a link says that something recorded differs across it (status, evidence class, a compared field). There is no
  * score and no ranking, and a link crossing another is shown as it is.
@@ -59,7 +61,7 @@ export function CorrespondenceMap({ a, b, links, selectedIndex, hoverIndex, focu
             const yb = yOf(indexOfB.get(l.b.id)!);
             return (
               <g key={l.index} {...common}>
-                <path d={d} fill="none" strokeWidth={sel ? 2.6 : hov ? 2.2 : 1.6} strokeLinecap="round" className={sel ? 'stroke-select' : l.cls === 'exact' ? 'stroke-fg-2' : 'stroke-der'} strokeDasharray={l.cls === 'proposed' ? '5 3.5' : undefined} />
+                <path d={d} fill="none" strokeWidth={sel ? 2.6 : hov ? 2.2 : 1.6} strokeLinecap="round" className={sel ? 'stroke-select' : l.cls === 'exact' ? 'stroke-fg-2' : 'stroke-fg-3'} strokeDasharray={l.cls === 'proposed' ? '5 3.5' : undefined} />
                 {l.differences.length > 0 && (
                   <g transform={`translate(${GUTTER / 2} ${(ya + yb) / 2})`}>
                     <path d="M0 -5 5 0 0 5 -5 0z" className="fill-surface-0 stroke-attn" strokeWidth={1.4} />

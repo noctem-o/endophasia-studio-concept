@@ -49,6 +49,9 @@
   .hatch-der {
     background-image: repeating-linear-gradient(135deg, rgba(180, 156, 247, 0.32) 0 1px, transparent 1px 6px);
   }
+  .hatch-der-faint {
+    background-image: repeating-linear-gradient(135deg, rgba(180, 156, 247, 0.13) 0 1px, transparent 1px 6px);
+  }
   .hatch-faint {
     background-image: repeating-linear-gradient(135deg, rgba(236, 232, 223, 0.07) 0 1px, transparent 1px 6px);
   }

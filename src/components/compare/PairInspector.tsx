@@ -21,7 +21,7 @@ const NOT_ESTABLISHED: Record<MapLink['cls'], string> = {
 function ClassTag({ cls }: { cls: MapLink['cls'] }) {
   const base = 'inline-flex h-5 items-center gap-1.5 rounded-tag border px-1.5 font-mono text-2xs font-semibold tracking-wider';
   if (cls === 'exact') return <span className={`${base} border-line-strong bg-surface-3 text-fg-1`}><svg width="14" height="6" aria-hidden><path d="M0 3h14" className="stroke-fg-2" strokeWidth="1.6" /></svg>{CLASS_LABEL[cls]}</span>;
-  if (cls === 'proposed') return <span className={`${base} border-der/50 text-der`}><svg width="14" height="6" aria-hidden><path d="M0 3h14" className="stroke-der" strokeWidth="1.6" strokeDasharray="4 2.5" /></svg>{CLASS_LABEL[cls]}</span>;
+  if (cls === 'proposed') return <span className={`${base} border-dashed border-line-strong text-fg-2`}><svg width="14" height="6" aria-hidden><path d="M0 3h14" className="stroke-fg-3" strokeWidth="1.6" strokeDasharray="4 2.5" /></svg>{CLASS_LABEL[cls]}</span>;
   return <span className={`${base} border-dashed border-line-strong text-fg-2`}><svg width="14" height="8" aria-hidden><circle cx="10" cy="4" r="3" className="fill-surface-0 stroke-fg-3" strokeWidth="1.2" /><path d="M0 4h6" className="stroke-fg-4" strokeWidth="1.4" strokeDasharray="2 2" /></svg>{CLASS_LABEL[cls]}</span>;
 }
 
@@ -87,7 +87,7 @@ export function PairInspector({ link, sessionA, sessionB, onClose, onOpenEvent }
                   <li key={f.field} className="border-b border-line-subtle px-2.5 py-2 last:border-b-0">
                     <div className="flex items-center gap-2 font-mono text-2xs">
                       <span className="text-fg-3">{f.field}</span>
-                      <span className={`ml-auto ${!f.compared ? 'text-fg-4' : f.same ? 'text-fg-3' : 'text-attn'}`}>{!f.compared ? 'not recorded on either side' : f.same ? '= same' : '≠ differs'}</span>
+                      <span className={`ml-auto ${!f.compared ? 'text-fg-3' : f.same ? 'text-fg-3' : 'text-attn'}`}>{!f.compared ? 'not recorded on either side' : f.same ? '= same' : '≠ differs'}</span>
                     </div>
                     {f.compared && (f.same ? (
                       <div className="mt-1 break-all font-mono text-2xs text-fg-2">{f.a}</div>

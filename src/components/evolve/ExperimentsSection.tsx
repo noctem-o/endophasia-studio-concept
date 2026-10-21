@@ -4,10 +4,12 @@ import type { EvolveCorpus, Experiment, ExperimentArm, Trial } from '../../domai
 import { cellStats, compareArms } from '../../analysis/evolve';
 import type { CellStats, CoordinateComparison } from '../../analysis/evolve';
 import { Button, Chip, IconButton, SelectField } from '../../ui/controls';
+import { InspectorColumn } from '../InspectorColumn';
 import { Badge, Callout, Def, DefList, NotRecorded, Section } from '../../ui/layout';
 import { IntervalBar } from '../../ui/viz';
 import { Block, DossierBody, DossierHeader, ListItem, ListPane, Split } from './LabLayout';
-import { CheckMark, OutcomeText } from './shared';
+import { CheckMark, ContinuationTag, OutcomeText } from './shared';
+import { isProjectionArm, outcomeQualification } from './evolveMeta';
 
 type Verdict = ReturnType<typeof compareArms>['verdict'];
 
@@ -31,6 +33,8 @@ export function ExperimentsSection({ corpus, experimentId, onSelect, onOpenExecu
 }) {
   const exp = corpus.experiments.find((x) => x.id === experimentId) ?? corpus.experiments[0];
   const [trialId, setTrialId] = useState<string | null>(null);
+  // Below lg the inspector is a drawer: opened by a trial or by the Details button.
+  const [drawer, setDrawer] = useState(false);
   const trials = useMemo(() => corpus.trials.filter((t) => t.experimentId === exp?.id), [corpus, exp]);
   const trial = trials.find((t) => t.id === trialId) ?? null;
   if (!exp) return null;
@@ -41,7 +45,7 @@ export function ExperimentsSection({ corpus, experimentId, onSelect, onOpenExecu
       list={
         <ListPane title="Experiments" count={corpus.experiments.length}>
           {corpus.experiments.map((x) => (
-            <ListItem key={x.id} selected={x.id === exp.id} onClick={() => { setTrialId(null); onSelect(x.id); }} label={x.label}>
+            <ListItem key={x.id} selected={x.id === exp.id} onClick={() => { setTrialId(null); setDrawer(false); onSelect(x.id); }} label={x.label}>
               <div className="text-xs font-medium text-fg-1">{x.label}</div>
               <div className="mt-1 flex items-center gap-2 font-mono text-2xs text-fg-3 tnum">
                 <span className={`rounded-tag border px-1.5 ${statusTag(x.status)}`}>{x.status}</span>
@@ -53,13 +57,13 @@ export function ExperimentsSection({ corpus, experimentId, onSelect, onOpenExecu
         </ListPane>
       }
       inspector={
-        <aside aria-label="Trial inspector" className="hidden w-[380px] shrink-0 flex-col border-l border-line bg-surface-1 lg:flex">
+        <InspectorColumn label="Trial inspector" open={drawer} onClose={() => setDrawer(false)} width="lg:w-[380px]">
           {trial ? (
-            <TrialInspector corpus={corpus} trial={trial} onClose={() => setTrialId(null)} onOpenExecution={onOpenExecution} onOpenSession={onOpenSession} />
+            <TrialInspector corpus={corpus} trial={trial} onClose={() => { setTrialId(null); setDrawer(false); }} onOpenExecution={onOpenExecution} onOpenSession={onOpenSession} />
           ) : (
             <DesignPanel exp={exp} />
           )}
-        </aside>
+        </InspectorColumn>
       }
     >
       <DossierBody>
@@ -67,6 +71,7 @@ export function ExperimentsSection({ corpus, experimentId, onSelect, onOpenExecu
           eyebrow={<><span>{exp.id}</span><span aria-hidden>·</span><span>started {exp.startedAt.slice(0, 10)}</span><span className={`rounded-tag border px-1.5 ${statusTag(exp.status)}`}>{exp.status}</span></>}
           title={exp.label}
           lede={exp.question}
+          tags={<Button onClick={() => setDrawer(true)} className="lg:hidden">design &amp; trial details</Button>}
         />
         {exp.design.confounds.length > 0 && (
           <Callout tone="attn" title="Declared confounds">
@@ -80,7 +85,9 @@ export function ExperimentsSection({ corpus, experimentId, onSelect, onOpenExecu
           note="Every bar is drawn on the same 0–100% axis. The bar is the 95% Wilson interval; the tick is the observed fraction; n is always printed. A check that was unavailable enters neither side of the denominator."
         >
           <div className={`grid gap-3 ${arms.length >= 3 ? 'xl:grid-cols-3' : ''} md:grid-cols-2`}>
-            {arms.map((arm) => <ArmCard key={arm.id} arm={arm} cell={cellStats(trials, arm.id)} />)}
+            {arms.map((arm) => isProjectionArm(corpus, arm.id)
+              ? <ProjectionCard key={arm.id} arm={arm} corpus={corpus} />
+              : <ArmCard key={arm.id} arm={arm} cell={cellStats(trials, arm.id)} />)}
           </div>
         </Block>
 
@@ -91,7 +98,7 @@ export function ExperimentsSection({ corpus, experimentId, onSelect, onOpenExecu
         )}
 
         <Block id="trials" title="Trials" note={`${trials.length} trial records. Select one to see its verdicts.`}>
-          <TrialTable corpus={corpus} trials={trials} selectedId={trialId} onSelect={setTrialId} />
+          <TrialTable corpus={corpus} trials={trials} selectedId={trialId} onSelect={(id) => { setTrialId(id); setDrawer(id !== null); }} />
         </Block>
       </DossierBody>
     </Split>
@@ -99,6 +106,26 @@ export function ExperimentsSection({ corpus, experimentId, onSelect, onOpenExecu
 }
 
 // ─── Arms ────────────────────────────────────────────────────────────────────
+
+/**
+ * An arm anchored only by a simulated branch. It is drawn as what it is: hatched, with no results axis, no usage and no pass
+ * rate, because a projection has none to show (and "no verdicts yet" would imply some could arrive).
+ */
+function ProjectionCard({ arm, corpus }: { arm: ExperimentArm; corpus: EvolveCorpus }) {
+  const execs = arm.executionIds.map((id) => corpus.executions.find((e) => e.id === id)).filter((e): e is NonNullable<typeof e> => Boolean(e));
+  return (
+    <article className="hatch-der-faint flex flex-col rounded-panel border border-der/40 bg-surface-1 p-3.5">
+      <div className="flex items-center gap-2">
+        <ContinuationTag kind="simulated" />
+        <span className="ml-auto font-mono text-2xs text-fg-3">no trials: it is not an execution</span>
+      </div>
+      <h4 className="mt-2 text-sm font-medium text-fg-1">{arm.label}</h4>
+      <p className="mt-1 text-xs leading-relaxed text-fg-3">{arm.intent}</p>
+      <p className="mt-3 rounded-ctl border border-der/30 bg-surface-1/90 px-2.5 py-2 text-xs leading-relaxed text-fg-1">A projection has no pass rate. It carries no usage and is excluded from every aggregate and from every comparison of results.</p>
+      {execs.length > 0 && <p className="mt-2 font-mono text-2xs text-fg-3">projection: {execs.map((e) => e.id).join(', ')}</p>}
+    </article>
+  );
+}
 
 function ArmCard({ arm, cell }: { arm: ExperimentArm; cell: CellStats }) {
   const confounded = arm.kind === 'confounded';
@@ -143,6 +170,7 @@ function ComparabilityPanel({ corpus, exp }: { corpus: EvolveCorpus; exp: Experi
   const b = exp.armIds.includes(bId) ? bId : (exp.armIds[1] ?? exp.armIds[0]);
   const report = useMemo(() => compareArms(corpus, a, b), [corpus, a, b]);
   const v = VERDICT[report.verdict];
+  const qualification = useMemo(() => outcomeQualification(corpus, corpus.trials.filter((t) => t.experimentId === exp.id), a, b), [corpus, exp.id, a, b]);
   const rows = report.coordinates.filter((c) => all || c.cls !== 'matched');
   const hidden = report.coordinates.length - rows.length;
   const armLabel = (id: string) => corpus.arms.find((x) => x.id === id)?.label ?? id;
@@ -156,6 +184,7 @@ function ComparabilityPanel({ corpus, exp }: { corpus: EvolveCorpus; exp: Experi
       </div>
 
       <Callout tone={v.tone} title={v.label}>{report.summary}</Callout>
+      {qualification && <Callout tone="attn" title="No outcome to compare">{qualification}</Callout>}
 
       {report.drift.length > 0 && (
         <Callout tone="attn" title="Within-arm drift">

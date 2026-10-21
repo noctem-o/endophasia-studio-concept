@@ -2,11 +2,13 @@ import { useMemo, useState } from 'react';
 import type { Candidate, EvolveCorpus, PromotionRecord, PromotionStage, PromotionStep } from '../../domain/evolve';
 import { candidateStatusMeta } from '../../domain/evolve';
 import { cellStats, compareArms } from '../../analysis/evolve';
-import { SelectField } from '../../ui/controls';
+import { Button, SelectField } from '../../ui/controls';
 import { Badge, Callout, Def, DefList, Section } from '../../ui/layout';
 import { IntervalBar } from '../../ui/viz';
+import { InspectorColumn } from '../InspectorColumn';
 import { Block, DossierBody, DossierHeader, ListItem, ListPane, Split } from './LabLayout';
 import { diffCandidates } from './candidateDiff';
+import { outcomeQualification } from './evolveMeta';
 
 /** The gates a candidate can pass, in order. Each is a SEPARATE recorded decision. */
 const GATES: { stage: PromotionStage; label: string }[] = [
@@ -100,6 +102,7 @@ export function CandidatesSection({ corpus, candidateId, onSelect, onOpenExecuti
   onOpenExecution: (id: string) => void;
   onOpenExperiment: (id: string) => void;
 }) {
+  const [drawer, setDrawer] = useState(false); // below lg the trail is a drawer
   const cand = corpus.candidates.find((c) => c.id === candidateId) ?? corpus.candidates[0];
   if (!cand) return null;
   const promo = corpus.promotions.find((p) => p.candidateId === cand.id);
@@ -115,7 +118,7 @@ export function CandidatesSection({ corpus, candidateId, onSelect, onOpenExecuti
           {corpus.candidates.map((c) => {
             const m = candidateStatusMeta[c.status];
             return (
-              <ListItem key={c.id} selected={c.id === cand.id} onClick={() => onSelect(c.id)} label={c.label}>
+              <ListItem key={c.id} selected={c.id === cand.id} onClick={() => { setDrawer(false); onSelect(c.id); }} label={c.label}>
                 <span className={`inline-block rounded-tag border px-1.5 font-mono text-2xs font-medium tracking-wider ${m.text} ${m.border} ${m.bg}`}>{m.label}</span>
                 <div className="mt-1.5 text-xs font-medium text-fg-1">{c.label}</div>
                 <p className="mt-0.5 line-clamp-2 text-2xs leading-snug text-fg-3">{c.change.summary}</p>
@@ -125,7 +128,8 @@ export function CandidatesSection({ corpus, candidateId, onSelect, onOpenExecuti
         </ListPane>
       }
       inspector={
-        <aside aria-label="Candidate trail" className="hidden w-[360px] shrink-0 flex-col overflow-y-auto scrollbar-thin border-l border-line bg-surface-1 px-4 py-4 lg:flex">
+        <InspectorColumn label="Candidate trail" open={drawer} onClose={() => setDrawer(false)} width="lg:w-[360px]">
+          <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-4 py-4">
           <div className="eyebrow">Trail</div>
           <h2 className="mt-1 font-serif text-xl leading-snug text-fg-1">What this candidate touched</h2>
           <div className="mt-4 space-y-4">
@@ -149,7 +153,8 @@ export function CandidatesSection({ corpus, candidateId, onSelect, onOpenExecuti
               )}
             </Section>
           </div>
-        </aside>
+          </div>
+        </InspectorColumn>
       }
     >
       <DossierBody>
@@ -157,7 +162,7 @@ export function CandidatesSection({ corpus, candidateId, onSelect, onOpenExecuti
           eyebrow={<><span>{cand.id}</span><span aria-hidden>·</span><span>proposed {cand.proposedAt.slice(0, 10)}</span></>}
           title={cand.label}
           lede={cand.change.summary}
-          tags={<><span title={status.desc} className={`rounded-tag border px-2 py-0.5 font-mono text-2xs font-medium tracking-wider ${status.text} ${status.border} ${status.bg}`}>{status.label}</span><span className="text-xs text-fg-3">{status.desc}</span></>}
+          tags={<><span title={status.desc} className={`rounded-tag border px-2 py-0.5 font-mono text-2xs font-medium tracking-wider ${status.text} ${status.border} ${status.bg}`}>{status.label}</span><span className="text-xs text-fg-3">{status.desc}</span><Button onClick={() => setDrawer(true)} className="lg:hidden">trail</Button></>}
         />
 
         <Block id="change" title="The change">
@@ -200,6 +205,7 @@ function EvaluationCard({ corpus, candidate, expId, onOpenExperiment }: { corpus
   const bId = candArms[0];
   const trials = corpus.trials.filter((t) => t.experimentId === exp.id);
   const report = useMemo(() => (aId && bId ? compareArms(corpus, aId, bId) : null), [corpus, aId, bId]);
+  const qualification = aId && bId ? outcomeQualification(corpus, trials, aId, bId) : null;
   const label = (id: string) => corpus.arms.find((a) => a.id === id)?.label ?? id;
 
   return (
@@ -223,7 +229,10 @@ function EvaluationCard({ corpus, candidate, expId, onOpenExperiment }: { corpus
             })}
           </div>
           {report && (
-            <div className="mt-3"><Callout tone={report.verdict === 'comparable' ? 'neutral' : report.verdict === 'confounded' ? 'fault' : 'attn'} title={report.verdict.replace(/-/g, ' ')}>{report.summary}</Callout></div>
+            <div className="mt-3 space-y-2">
+              <Callout tone={report.verdict === 'comparable' ? 'neutral' : report.verdict === 'confounded' ? 'fault' : 'attn'} title={`coordinates: ${report.verdict.replace(/-/g, ' ')}`}>{report.summary}</Callout>
+              {qualification && <Callout tone="attn" title="No outcome to compare">{qualification}</Callout>}
+            </div>
           )}
         </>
       ) : (

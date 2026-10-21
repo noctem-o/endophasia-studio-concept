@@ -36,9 +36,15 @@ import { ProvMark } from '@/ui/marks';
  */
 function fitComfortably(scene: LineageScene, viewW: number, viewH: number): Viewport {
   const b = sceneBounds(scene);
-  const scale = clampScale(Math.min(1.5, (Math.min(viewW / b.width, viewH / b.height)) * 0.94));
-  return { scale, x: (viewW - b.width * scale) / 2, y: (viewH - b.height * scale) / 2 };
+  // The floating toolbar occupies the top of the canvas: fit into the space beneath it, so it never covers the first row.
+  const top = Math.min(TOOLBAR_INSET, viewH * 0.2);
+  const availH = viewH - top;
+  const scale = clampScale(Math.min(1.5, Math.min(viewW / b.width, availH / b.height) * 0.94));
+  return { scale, x: (viewW - b.width * scale) / 2, y: top + (availH - b.height * scale) / 2 };
 }
+
+/** Height of the floating toolbar plus its margin, in CSS pixels. */
+const TOOLBAR_INSET = 64;
 
 const PROV_KIND: Record<string, EvidenceKind> = { observed: 'OBS', reported: 'REP', derived: 'DER', 'not-applicable': 'NA' };
 

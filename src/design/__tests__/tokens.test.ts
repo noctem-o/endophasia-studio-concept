@@ -126,3 +126,70 @@ describe('lineage node styles keep the epistemic kinds visibly apart', () => {
     }
   });
 });
+
+describe('fg-4 is for graphics, never for words', () => {
+  // fg-4 is below the 4.5:1 text floor (see above), so it may only colour non-text marks. Each use below was reviewed and is an
+  // icon or a drawn shape that has its own text label beside it. A new use fails here until it is reviewed and listed.
+  const reviewed: Record<string, number> = {
+    'src/components/observe/EventInspector.tsx': 1, // arrow between a relation and its target
+    'src/components/evolve/CandidatesSection.tsx': 1, // the dashed ring of a gate with no record (labelled "no record")
+    'src/components/evolve/CheckpointsSection.tsx': 1, // the hollow square of an unsupported continuation (labelled)
+    'src/components/observe/TrajectoryOverview.tsx': 1, // the marker of an event with no evidence items (shape, tooltip)
+  };
+
+  it('is used as text colour only where it was reviewed', () => {
+    // Vite reads the sources as raw strings; no Node types needed.
+    const sources = import.meta.glob(['/src/**/*.{ts,tsx}', '!/src/**/__tests__/**'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+    const found: Record<string, number> = {};
+    for (const [file, text] of Object.entries(sources)) {
+      const n = (text.match(/text-fg-4/g) ?? []).length;
+      if (n > 0) found[file.replace(/^\//, '')] = n;
+    }
+    expect(found).toEqual(reviewed);
+  });
+});
+
+/** OKLab: a perceptually uniform space, so Euclidean distance approximates how different two colours LOOK. */
+const oklab = (hex: string): [number, number, number] => {
+  const n = parseInt(hex.slice(1), 16);
+  const lin = (c: number) => { const v = c / 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  const [r, g, b] = [lin((n >> 16) & 255), lin((n >> 8) & 255), lin(n & 255)];
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s];
+};
+const deltaE = (a: string, b: string) => Math.hypot(...oklab(a).map((v, i) => v - oklab(b)[i]));
+const minPair = (colours: Record<string, string>) => {
+  const e = Object.entries(colours);
+  let worst = { d: Infinity, pair: '' };
+  for (let i = 0; i < e.length; i++) for (let j = i + 1; j < e.length; j++) {
+    const d = deltaE(e[i][1], e[j][1]);
+    if (d < worst.d) worst = { d, pair: `${e[i][0]} / ${e[j][0]}` };
+  }
+  return worst;
+};
+
+describe('distinguishable, not merely distinct (OKLab ΔE ≥ 0.08)', () => {
+  // The WebGL backend draws every edge solid, so there a relation is told apart by colour alone. Six unique hex values can still
+  // be near-identical greys; this holds the whole set to a perceptual floor.
+  it('the six lineage relations', () => {
+    const w = minPair(tokens.relation);
+    expect(w.d, w.pair).toBeGreaterThanOrEqual(0.08);
+  });
+
+  it('the five execution kinds', () => {
+    const w = minPair(tokens.classification);
+    expect(w.d, w.pair).toBeGreaterThanOrEqual(0.08);
+  });
+
+  it('the hued relations keep clear of the provenance, attention and fault colours they must not be mistaken for', () => {
+    const reserved = { ...tokens.provenance, attention: tokens.attention, fault: tokens.fault };
+    for (const rel of ['candidate_of', 'evaluated_against', 'replay_of'] as const) {
+      for (const [name, hex] of Object.entries(reserved)) {
+        if (name === 'NA') continue; // slate grey: neutral relations are meant to sit near it
+        expect(deltaE(tokens.relation[rel], hex), `${rel} vs ${name}`).toBeGreaterThanOrEqual(0.07);
+      }
+    }
+  });
+});

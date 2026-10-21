@@ -34,7 +34,7 @@ export function AppHeader({ workspace, onWorkspace, onHelp }: {
               >
                 <Icon className="h-3.5 w-3.5" aria-hidden />
                 {label}
-                <span aria-hidden className="ml-0.5 font-mono text-2xs text-fg-4">{key}</span>
+                <span aria-hidden className="ml-0.5 font-mono text-2xs text-fg-3">{key}</span>
                 <span aria-hidden className={`absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-select transition-opacity duration-100 ${active ? 'opacity-100' : 'opacity-0'}`} />
               </button>
             );

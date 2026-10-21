@@ -20,7 +20,7 @@ function Sample({ cls }: { cls: LinkClass }) {
   return (
     <svg width="22" height="10" viewBox="0 0 22 10" aria-hidden className="shrink-0">
       {cls === 'exact' && <path d="M1 5h20" className="stroke-fg-2" strokeWidth="1.8" strokeLinecap="round" />}
-      {cls === 'proposed' && <path d="M1 5h20" className="stroke-der" strokeWidth="1.8" strokeLinecap="round" strokeDasharray="5 3" />}
+      {cls === 'proposed' && <path d="M1 5h20" className="stroke-fg-3" strokeWidth="1.8" strokeLinecap="round" strokeDasharray="5 3" />}
       {(cls === 'unmatched-a' || cls === 'unmatched-b') && <><path d="M1 5h10" className="stroke-fg-4" strokeWidth="1.4" strokeLinecap="round" strokeDasharray="2 2.4" /><circle cx="15" cy="5" r="3.2" className="fill-surface-0 stroke-fg-3" strokeWidth="1.2" /></>}
     </svg>
   );

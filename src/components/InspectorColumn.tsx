@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 
 /**
@@ -13,6 +14,14 @@ export function InspectorColumn({ label, open, onClose, children, width = 'lg:w-
   children: ReactNode;
   width?: string;
 }) {
+  // A drawer must never be a trap: Escape closes it (at lg and above this just clears whatever opened it).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
   return (
     <>
       {open && <button type="button" tabIndex={-1} aria-hidden onClick={onClose} className="fixed inset-0 z-20 bg-black/50 lg:hidden" />}

@@ -54,7 +54,7 @@ export function ProvTag({ kind, title }: { kind: EvidenceKind; title?: string })
 
 /** Several classes at once (an event's evidence items), strongest first. */
 export function ProvStack({ kinds }: { kinds: EvidenceKind[] }) {
-  if (kinds.length === 0) return <span className="font-mono text-2xs text-fg-4" title="No evidence items on this record">—</span>;
+  if (kinds.length === 0) return <span className="font-mono text-2xs text-fg-3" title="No evidence items on this record">—</span>;
   return (
     <span className="inline-flex items-center gap-1" role="img" aria-label={kinds.map((k) => evidenceMeta[k].full).join(', ')}>
       {kinds.map((k, i) => (

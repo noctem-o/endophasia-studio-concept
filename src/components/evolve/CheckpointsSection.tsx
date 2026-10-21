@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import type { Checkpoint, ContinuationKind, EvolveCorpus } from '../../domain/evolve';
 import { continuationMeta, continuationSupport } from '../../domain/evolve';
+import { Button } from '../../ui/controls';
 import { Callout, Def, DefList, Section } from '../../ui/layout';
+import { InspectorColumn } from '../InspectorColumn';
 import { Block, DossierBody, DossierHeader, ListItem, ListPane, Split } from './LabLayout';
 import { ContinuationTag, RelationLine } from './shared';
 import { RELATION_META } from './evolveMeta';
@@ -38,6 +41,7 @@ export function CheckpointsSection({ corpus, checkpointId, onSelect, onOpenExecu
   onOpenExecution: (id: string) => void;
   onOpenExperiment: (id: string) => void;
 }) {
+  const [drawer, setDrawer] = useState(false); // below lg the branches are a drawer
   const cp = corpus.checkpoints.find((c) => c.id === checkpointId) ?? corpus.checkpoints[0];
   if (!cp) return null;
   const support = continuationSupport(cp);
@@ -50,7 +54,7 @@ export function CheckpointsSection({ corpus, checkpointId, onSelect, onOpenExecu
       list={
         <ListPane title="Checkpoints" count={corpus.checkpoints.length}>
           {corpus.checkpoints.map((c) => (
-            <ListItem key={c.id} selected={c.id === cp.id} onClick={() => onSelect(c.id)} label={c.label}>
+            <ListItem key={c.id} selected={c.id === cp.id} onClick={() => { setDrawer(false); onSelect(c.id); }} label={c.label}>
               <div className="font-mono text-2xs text-fg-3">{c.id}</div>
               <div className="mt-0.5 text-xs font-medium text-fg-1">{c.label}</div>
               <div className="mt-1.5"><SupportMarks cp={c} /></div>
@@ -59,7 +63,8 @@ export function CheckpointsSection({ corpus, checkpointId, onSelect, onOpenExecu
         </ListPane>
       }
       inspector={
-        <aside aria-label="Recorded branches" className="hidden w-[360px] shrink-0 flex-col overflow-y-auto scrollbar-thin border-l border-line bg-surface-1 px-4 py-4 lg:flex">
+        <InspectorColumn label="Recorded branches" open={drawer} onClose={() => setDrawer(false)} width="lg:w-[360px]">
+          <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-4 py-4">
           <div className="eyebrow">Branches</div>
           <h2 className="mt-1 font-serif text-xl leading-snug text-fg-1">What was continued from here</h2>
           <div className="mt-4 space-y-4">
@@ -88,7 +93,8 @@ export function CheckpointsSection({ corpus, checkpointId, onSelect, onOpenExecu
               </ul>
             </Section>
           </div>
-        </aside>
+          </div>
+        </InspectorColumn>
       }
     >
       <DossierBody>
@@ -96,6 +102,7 @@ export function CheckpointsSection({ corpus, checkpointId, onSelect, onOpenExecu
           eyebrow={<><span>checkpoint</span><span aria-hidden>·</span><span>{cp.id}</span></>}
           title={cp.label}
           lede={cp.note}
+          tags={<Button onClick={() => setDrawer(true)} className="lg:hidden">recorded branches</Button>}
         />
 
         <Block id="position" title="Position">
