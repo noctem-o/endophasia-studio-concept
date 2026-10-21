@@ -6,40 +6,44 @@ const pct = (x: number) => `${(x * 100).toFixed(0)}%`;
 
 /**
  * A pass rate as an interval, not a number. Fixed 0–100% axis on every bar (so bars are comparable across arms), the 95% Wilson
- * interval as the bar, its centre as a tick, and the denominator always printed beside it. When there is no verdict the track is
- * hatched and says so: an empty bar would read as 0%, and missing is not zero.
+ * interval as the bar, the OBSERVED fraction (passes / denominator) as a tick, and the denominator always printed beside it.
+ * The tick is the observed fraction, not the Wilson centre: the centre is a property of the interval and is pulled toward 50%,
+ * so printing it as "the pass rate" would overstate or understate what was observed. The observed fraction always lies inside
+ * the interval. When there is no verdict the track is hatched and says so: an empty bar would read as 0%, and missing is not zero.
  *
  * Deliberately neutral: pass/fail is an outcome, not provenance, so it takes no hue.
  */
-export function IntervalBar({ passes, denominator, rate, emptyReason, compact = false }: {
+export function IntervalBar({ passes, denominator, interval, emptyReason, compact = false }: {
   passes: number;
   denominator: number;
-  rate: { centre: number; low: number; high: number } | null;
+  interval: { low: number; high: number } | null;
   emptyReason?: string;
   compact?: boolean;
 }) {
-  const label = rate
-    ? `${passes} of ${denominator} checks passed; 95% Wilson interval ${pct(rate.low)} to ${pct(rate.high)}, centre ${pct(rate.centre)}`
+  const observed = denominator > 0 ? passes / denominator : null;
+  const has = interval !== null && observed !== null;
+  const label = has
+    ? `${passes} of ${denominator} checks passed (${pct(observed)}); 95% Wilson interval ${pct(interval.low)} to ${pct(interval.high)}`
     : `no pass/fail verdicts${emptyReason ? `: ${emptyReason}` : ''}`;
   return (
     <div className="min-w-0">
-      <div role="img" aria-label={label} className={`relative overflow-hidden rounded-tag border border-line bg-surface-1 ${compact ? 'h-2.5' : 'h-3.5'} ${rate ? '' : 'hatch-faint'}`}>
+      <div role="img" aria-label={label} className={`relative overflow-hidden rounded-tag border border-line bg-surface-1 ${compact ? 'h-2.5' : 'h-3.5'} ${has ? '' : 'hatch-faint'}`}>
         {[0.25, 0.5, 0.75].map((t) => (
           <span key={t} aria-hidden className="absolute inset-y-0 w-px bg-line-subtle" style={{ left: `${t * 100}%` }} />
         ))}
-        {rate && (
+        {has && (
           <>
-            <span aria-hidden className="absolute inset-y-[3px] rounded-[1px] bg-fg-3/70" style={{ left: `${rate.low * 100}%`, width: `${Math.max(0.8, (rate.high - rate.low) * 100)}%` }} />
-            <span aria-hidden className="absolute inset-y-0 w-[2px] bg-select" style={{ left: `calc(${rate.centre * 100}% - 1px)` }} />
+            <span aria-hidden className="absolute inset-y-[3px] rounded-[1px] bg-fg-3/70" style={{ left: `${interval.low * 100}%`, width: `${Math.max(0.8, (interval.high - interval.low) * 100)}%` }} />
+            <span aria-hidden className="absolute inset-y-0 w-[2px] bg-select" style={{ left: `calc(${observed * 100}% - 1px)` }} />
           </>
         )}
       </div>
       <div className="mt-1 flex items-baseline gap-2 font-mono text-2xs tnum">
-        {rate ? (
+        {has ? (
           <>
             <span className="text-fg-1">{passes}/{denominator}</span>
-            <span className="text-fg-2">{pct(rate.centre)}</span>
-            <span className="text-fg-3">[{pct(rate.low)}, {pct(rate.high)}]</span>
+            <span className="text-fg-2">{pct(observed)}</span>
+            <span className="text-fg-3" title="95% Wilson score interval">[{pct(interval.low)}, {pct(interval.high)}]</span>
           </>
         ) : (
           <span className="text-fg-3">no verdicts{emptyReason ? ` — ${emptyReason}` : ''}</span>

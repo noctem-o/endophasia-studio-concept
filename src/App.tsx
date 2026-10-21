@@ -20,8 +20,12 @@ function statusContext(studio: StudioState): string {
       return `A ${studio.compareSessionA.id} · B ${studio.compareSessionB.id} · alignment is proposed, never verified`;
     case 'capabilities':
       return `${studio.session.id} · ${studio.selectedCapability?.name ?? studio.session.capabilities[0]?.name ?? 'no capability'}`;
-    case 'evolve':
-      return `Counterfactual Laboratory · ${studio.evolveView.kind}`;
+    case 'evolve': {
+      const v = studio.evolveView;
+      const id = v.kind === 'execution' ? v.executionId : v.kind === 'experiment' ? v.experimentId : v.kind === 'candidate' ? v.candidateId : v.kind === 'checkpoint' ? v.checkpointId : null;
+      const section = v.kind === 'corpus' || v.kind === 'execution' ? 'lineage' : `${v.kind}s`;
+      return `Counterfactual Laboratory · ${section}${id ? ` · ${id}` : ' · nothing selected'}`;
+    }
   }
 }
 

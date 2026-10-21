@@ -4,6 +4,11 @@ import { readFileSync } from 'node:fs';
 // canvas/WebGL renderers, which cannot read classes, can never drift apart.
 const t = JSON.parse(readFileSync(new URL('./src/design/tokens.json', import.meta.url), 'utf8'));
 
+const rgba = (hex, a) => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+};
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
@@ -28,6 +33,8 @@ export default {
         fault: t.fault,
         // Selection is neutral on purpose: choosing something never changes what it looks like.
         select: t.select,
+        // Structure, not evidence: the colour a replay is drawn in (graph nodes, edges, tags).
+        replay: t.classification.replay,
         // TRANSITIONAL aliases so unconverted screens keep rendering while workspaces are rebuilt one by one.
         // Removed when the last workspace is converted; `npm run audit:classes` and a grep prove none remain.
         ink: { 950: t.surface['0'], 900: t.surface['1'], 850: t.surface['1'], 800: t.surface['2'], 750: t.surface['3'], 700: t.line.DEFAULT, 600: t.line.strong, 500: t.fg['4'], 400: t.fg['3'], 300: t.fg['3'], 200: t.fg['2'], 100: t.fg['1'], 50: t.fg['1'] },
@@ -51,6 +58,7 @@ export default {
         pop: '0 10px 30px -6px rgba(0,0,0,0.6), 0 0 0 1px rgba(236,232,223,0.06)',
         inset: 'inset 0 1px 0 rgba(236,232,223,0.035)',
         hairline: `0 1px 0 0 ${t.line.DEFAULT}`,
+        'focus-inset': `inset 0 0 0 2px ${rgba(t.select, 0.45)}`,
       },
       transitionTimingFunction: { out: 'cubic-bezier(0.2, 0.7, 0.2, 1)' },
     },

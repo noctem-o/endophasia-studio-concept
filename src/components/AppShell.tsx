@@ -16,9 +16,7 @@ export function AppHeader({ workspace, onWorkspace, onHelp }: {
       <div className="flex h-12 items-stretch gap-6 px-4">
         <div className="flex items-center gap-2.5">
           <BrandMark />
-          <div className="leading-none">
-            <div className="text-sm font-semibold tracking-tight text-fg-1">Endophasia <span className="font-normal text-fg-3">Studio</span></div>
-          </div>
+          <div className="font-serif text-lg font-medium leading-none tracking-tight text-fg-1">Endophasia</div>
         </div>
 
         <nav aria-label="Workspaces" className="flex items-stretch gap-1">

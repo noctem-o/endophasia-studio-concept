@@ -43,37 +43,34 @@ export function HeatmapPocView({ scene }: { scene: HeatmapScene }) {
     return scene.values.map((v, i) => {
       const r = Math.floor(i / scene.columns);
       const c = i % scene.columns;
-      // teal ramp: low = ink-800, high = teal
-      const t = Math.round(v * 255);
-      const bg = `rgba(45, 212, 191, ${(v * 0.85 + 0.05).toFixed(2)})`;
-      return { key: `${r}-${c}`, r, c, v, bg, text: t > 140 ? '#0A0E12' : '#D3DBE6' };
+      // A neutral ivory ramp: the values are synthetic, so they take no provenance hue (teal would read as "observed").
+      const bg = `rgba(236, 232, 223, ${(v * 0.7 + 0.04).toFixed(2)})`;
+      return { key: `${r}-${c}`, r, c, v, bg };
     });
   }, [scene]);
 
   return (
     <div>
-      <div className="grid gap-px" style={{ gridTemplateColumns: `64px repeat(${scene.columns}, minmax(0, 1fr))` }}>
+      <div className="hatch-faint grid gap-px rounded-ctl border border-line p-1" style={{ gridTemplateColumns: `56px repeat(${scene.columns}, minmax(0, 1fr))` }}>
         <div />
         {scene.columnLabels.map((cl) => (
-          <div key={cl} className="pb-1 text-center font-mono text-[8px] text-ink-500">{cl}</div>
+          <div key={cl} className="pb-1 text-center font-mono text-[9px] text-fg-3">{cl.replace('col-', '')}</div>
         ))}
         {cells.map((cell) => (
           <div key={cell.key} className="contents">
             {cell.c === 0 && (
-              <div className="pr-1 text-right font-mono text-[8px] leading-5 text-ink-500">{scene.rowLabels[cell.r]}</div>
+              <div className="pr-1.5 text-right font-mono text-2xs leading-5 text-fg-3">{scene.rowLabels[cell.r]}</div>
             )}
             <div
-              className="flex h-5 items-center justify-center font-mono text-[7px]"
-              style={{ background: cell.bg, color: cell.text }}
+              className="h-5 rounded-[1px]"
+              style={{ background: cell.bg }}
               title={`row ${cell.r + 1}, col ${cell.c + 1}: ${cell.v.toFixed(3)} (synthetic)`}
-            >
-              {cell.v.toFixed(2)}
-            </div>
+            />
           </div>
         ))}
       </div>
-      <p className="mt-2 text-2xs leading-relaxed text-ink-500">
-        proof-of-concept only: values are digest-derived synthetic fixtures, not measured data. Demonstrates scene → color-grid projection for future OBSERVE/DREAM scenes.
+      <p className="mt-2 text-2xs leading-relaxed text-fg-3">
+        Proof of concept only: values are digest-derived synthetic fixtures, not measured data (hover a cell for its value). Demonstrates scene → colour-grid projection for future OBSERVE/DREAM scenes.
       </p>
     </div>
   );

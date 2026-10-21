@@ -1,4 +1,4 @@
-# Endophasia Studio — design direction (draft for review)
+# Endophasia — design direction (draft for review)
 
 ## Thesis
 

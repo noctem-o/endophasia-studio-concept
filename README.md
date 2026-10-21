@@ -1,4 +1,4 @@
-# Endophasia Studio — Concept
+# Endophasia — Concept
 
 An interactive design exploration of a **research workstation for observing AI coding-agent behaviour** — an instrument for recording, inspecting, and comparing agent trajectories with explicit evidence provenance, rather than a product mock.
 

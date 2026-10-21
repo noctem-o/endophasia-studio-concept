@@ -1,34 +1,35 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Crosshair, Gauge, Maximize2 } from 'lucide-react';
 import type { LineageScene } from './types';
 import type { Viewport } from './renderers/types';
 import { createRenderer, isBackendAvailable, type BackendId } from './renderers';
 import type { LineageRenderer } from './renderers/types';
 import { measureFps, measureRenderer, type MeasurementBlock } from './renderers/measure';
 import {
-  clampScale, filteredVisibleNodes, fitViewport, focusSetOf, initialInteraction, lodTier,
-  LOD_THRESHOLDS, navOrder, type InteractionState,
+  clampScale, filteredVisibleNodes, fitViewport, focusSetOf, initialInteraction, lodTier, navOrder, type InteractionState,
 } from './interaction';
-import { RAW, RELATION_STYLE_HEX, CLASSIFICATION_TAG, PROVENANCE_BADGE } from './renderers/palette';
-import { makeHeatmapPoc, HeatmapPocView } from './heatmapPoc';
+import { CLASSIFICATION_TAG, PROVENANCE_BADGE } from './renderers/palette';
+import { makeHeatmapPoc } from './heatmapPoc';
+import { ExplorerKey } from './ExplorerKey';
+import { NodeOverlay } from './NodeOverlay';
+import { DiagnosticsPanel } from './DiagnosticsPanel';
+import { Button, SearchField } from '@/ui/controls';
 import type { LineageRelation } from '@/domain/evolve';
+import type { EvidenceKind } from '@/domain/types';
+import { ProvMark } from '@/ui/marks';
 
 /**
  * LineageExplorer — renderer-independent graph explorer.
  * Owns viewport/selection/filter/focus as React state; the renderer is a
  * replaceable view. Backend switches rebuild the renderer and push the exact
  * same state back in, so selection and camera survive the swap.
+ *
+ * The host application may follow the selection (`onSelectNode`) and may set it from outside (`selectedId`); selecting a node
+ * never navigates away from the graph. `onOpenNode` is the explicit "open this record" action and is retained for callers that
+ * want it.
  */
 
-const ALL_RELATIONS: LineageRelation[] = ['forked_from', 'replay_of', 'candidate_of', 'evaluated_against', 'continuation_of', 'simulated_branch'];
-
-const RELATION_LABEL: Record<LineageRelation, string> = {
-  forked_from: 'forked from',
-  replay_of: 'replay of',
-  candidate_of: 'candidate of',
-  evaluated_against: 'evaluated against',
-  continuation_of: 'continuation of',
-  simulated_branch: 'simulated branch',
-};
+const PROV_KIND: Record<string, EvidenceKind> = { observed: 'OBS', reported: 'REP', derived: 'DER', 'not-applicable': 'NA' };
 
 export interface ExplorerSceneEntry {
   id: string;
@@ -41,29 +42,53 @@ interface Props {
   scenes: ExplorerSceneEntry[];
   initialSceneId?: string;
   initialSelection?: string | null;
+  /** Explicit "open the record" action. Selecting a node does not call this. */
   onOpenNode?: (id: string) => void;
+  /** Called whenever the selection changes by interaction (a node id, or null when cleared). */
+  onSelectNode?: (id: string | null) => void;
+  /** When defined, the selection follows this value (set from outside, e.g. from an inspector). */
+  selectedId?: string | null;
 }
 
-export function LineageExplorer({ scenes, initialSceneId, initialSelection = null, onOpenNode }: Props) {
+const selectCls = 'h-6 max-w-[300px] rounded-tag border border-line bg-surface-2 px-1.5 font-mono text-2xs text-fg-1 hover:border-line-strong focus:border-line-strong';
+
+export function LineageExplorer({ scenes, initialSceneId, initialSelection = null, onOpenNode, onSelectNode, selectedId }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const overlayRef = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef<LineageRenderer | null>(null);
   const dragRef = useRef<{ startX: number; startY: number; vp: Viewport } | null>(null);
+  const movedRef = useRef(false);
   const viewSizeRef = useRef({ w: 800, h: 600 });
+  const needsFitRef = useRef(true);
 
   const [backend, setBackend] = useState<BackendId>(() => (isBackendAvailable('webgl2-instanced') ? 'webgl2-instanced' : 'svg-dom'));
   const [backendIssue, setBackendIssue] = useState<string | null>(null);
   const [sceneId, setSceneId] = useState(initialSceneId ?? scenes[0]?.id ?? '');
-  const [interaction, setInteraction] = useState<InteractionState>(() => ({ ...initialInteraction(), selection: initialSelection }));
+  const [interaction, setInteraction] = useState<InteractionState>(() => ({ ...initialInteraction(), selection: selectedId !== undefined ? selectedId : initialSelection }));
   const [backendDetails, setBackendDetails] = useState('');
   const [measurements, setMeasurements] = useState<MeasurementBlock[]>([]);
   const [fps, setFps] = useState<{ median: number; min: number } | null | 'unmeasured'>('unmeasured');
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [keyOpen, setKeyOpen] = useState(true);
+  const [size, setSize] = useState({ w: 800, h: 600 });
 
   const scene = useMemo(() => scenes.find((s) => s.id === sceneId) ?? scenes[0], [scenes, sceneId]);
   const heatmapScene = useMemo(() => makeHeatmapPoc(), []);
   const visible = useMemo(() => (scene ? filteredVisibleNodes(scene.scene, interaction) : new Set<string>()), [scene, interaction]);
   const lod = lodTier(interaction.viewport.scale);
+
+  const interactionRef = useRef(interaction);
+  interactionRef.current = interaction;
+  const onOpenNodeRef = useRef(onOpenNode);
+  onOpenNodeRef.current = onOpenNode;
+  const onSelectNodeRef = useRef(onSelectNode);
+  onSelectNodeRef.current = onSelectNode;
+  const sceneRef = useRef(scene);
+  sceneRef.current = scene;
+
+  const select = useCallback((id: string | null) => {
+    setInteraction((s) => ({ ...s, selection: id }));
+    onSelectNodeRef.current?.(id);
+  }, []);
 
   // ── Renderer lifecycle: create on backend change, push state in ──────────
   useEffect(() => {
@@ -76,8 +101,9 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
     rendererRef.current = renderer;
     renderer.mount(host, {
       onNodeClick: (id) => {
-        setInteraction((s) => ({ ...s, selection: id }));
-        if (id) onOpenNodeRef.current?.(id);
+        // A drag that ends over a node is a pan, not a selection.
+        if (movedRef.current) return;
+        select(id);
       },
     });
     renderer.setScene(scene.scene);
@@ -99,14 +125,20 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
   useEffect(() => { rendererRef.current?.setHighlight(interaction.focus); }, [interaction.focus]);
   useEffect(() => { if (scene) rendererRef.current?.setScene(scene.scene); }, [scene]);
 
-  // ── Resize handling ───────────────────────────────────────────────────────
+  // ── Resize handling; the first real size fits the graph ───────────────────
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     const ro = new ResizeObserver(() => {
       const r = host.getBoundingClientRect();
       viewSizeRef.current = { w: Math.max(1, r.width), h: Math.max(1, r.height) };
+      setSize(viewSizeRef.current);
       rendererRef.current?.resize(viewSizeRef.current.w, viewSizeRef.current.h);
+      if (needsFitRef.current && r.width > 1 && r.height > 1 && sceneRef.current) {
+        needsFitRef.current = false;
+        const { w, h } = viewSizeRef.current;
+        setInteraction((s) => ({ ...s, viewport: fitViewport(sceneRef.current!.scene, w, h) }));
+      }
     });
     ro.observe(host);
     return () => ro.disconnect();
@@ -118,16 +150,26 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
     if (!host) return;
     const down = (e: MouseEvent) => {
       dragRef.current = { startX: e.clientX, startY: e.clientY, vp: interactionRef.current.viewport };
+      movedRef.current = false;
     };
     const move = (e: MouseEvent) => {
       const d = dragRef.current;
       if (!d) return;
-      setInteraction((s) => ({
-        ...s,
-        viewport: { ...s.viewport, x: d.vp.x + (e.clientX - d.startX), y: d.vp.y + (e.clientY - d.startY) },
-      }));
+      const dx = e.clientX - d.startX;
+      const dy = e.clientY - d.startY;
+      if (!movedRef.current && Math.abs(dx) + Math.abs(dy) > 4) {
+        movedRef.current = true;
+        host.style.cursor = 'grabbing';
+      }
+      if (!movedRef.current) return;
+      setInteraction((s) => ({ ...s, viewport: { ...s.viewport, x: d.vp.x + dx, y: d.vp.y + dy } }));
     };
-    const up = () => { dragRef.current = null; };
+    const up = () => {
+      dragRef.current = null;
+      host.style.cursor = '';
+      // The click that follows a drag is dispatched after mouseup; clear the flag once it has had its chance.
+      setTimeout(() => { movedRef.current = false; }, 0);
+    };
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
       const rect = host.getBoundingClientRect();
@@ -152,31 +194,6 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
     };
   }, []);
 
-  const interactionRef = useRef(interaction);
-  interactionRef.current = interaction;
-  const onOpenNodeRef = useRef(onOpenNode);
-  onOpenNodeRef.current = onOpenNode;
-
-  // ── Keyboard navigation ──────────────────────────────────────
-  const onKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (!scene) return;
-    const order = navOrder(scene.scene);
-    const idx = interaction.selection ? order.indexOf(interaction.selection) : -1;
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-      e.preventDefault();
-      const next = order[Math.min(order.length - 1, idx + 1)];
-      if (next) setInteraction((s) => ({ ...s, selection: next }));
-    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      const prev = order[Math.max(0, idx - 1)];
-      if (prev) setInteraction((s) => ({ ...s, selection: prev }));
-    } else if (e.key === 'f' && interaction.selection) {
-      setInteraction((s) => ({ ...s, focus: s.focus ? null : focusSetOf(scene.scene, s.selection!) }));
-    } else if (e.key === '0') {
-      if (scene) setInteraction((s) => ({ ...s, viewport: fitViewport(scene.scene, viewSizeRef.current.w, viewSizeRef.current.h) }));
-    }
-  }, [scene, interaction.selection]);
-
   const fitToScene = useCallback(() => {
     if (!scene) return;
     setInteraction((s) => ({ ...s, viewport: fitViewport(scene.scene, viewSizeRef.current.w, viewSizeRef.current.h) }));
@@ -193,10 +210,59 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
     setInteraction((s) => ({ ...s, viewport: { ...s.viewport, x: w / 2 - wx * s.viewport.scale, y: h / 2 - wy * s.viewport.scale } }));
   }, [scene]);
 
+  // A selection made outside the graph (an inspector link) is followed, and brought into view only if it is off-screen.
   useEffect(() => {
-    if (interaction.selection) centerOn(interaction.selection);
+    if (selectedId === undefined || !scene) return;
+    if (selectedId === interactionRef.current.selection) return;
+    setInteraction((s) => ({ ...s, selection: selectedId }));
+    if (selectedId) {
+      const p = scene.scene.layout.positions[selectedId];
+      if (p) {
+        const { viewport: vp } = interactionRef.current;
+        const enc = scene.scene.encoding;
+        const sx = (20 + p.column * enc.columnGap) * vp.scale + vp.x;
+        const sy = (20 + p.row * enc.rowGap) * vp.scale + vp.y;
+        const { w, h } = viewSizeRef.current;
+        if (sx < 0 || sy < 0 || sx + enc.nodeWidth * vp.scale > w || sy + enc.nodeHeight * vp.scale > h) centerOn(selectedId);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
+  // Switching scene: keep a selection in view if there is one, otherwise fit the new scene.
+  const firstSceneRender = useRef(true);
+  useEffect(() => {
+    if (firstSceneRender.current) { firstSceneRender.current = false; return; }
+    if (interactionRef.current.selection && scene?.scene.layout.positions[interactionRef.current.selection]) centerOn(interactionRef.current.selection);
+    else fitToScene();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneId]);
+
+  // ── Keyboard navigation ──────────────────────────────────────
+  const onKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!scene) return;
+    const order = navOrder(scene.scene);
+    const idx = interaction.selection ? order.indexOf(interaction.selection) : -1;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = order[Math.min(order.length - 1, idx + 1)];
+      if (next) select(next);
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prev = order[Math.max(0, idx - 1)];
+      if (prev) select(prev);
+    } else if (e.key === 'f' && interaction.selection) {
+      setInteraction((s) => ({ ...s, focus: s.focus ? null : focusSetOf(scene.scene, s.selection!) }));
+    } else if (e.key === '0') {
+      if (scene) setInteraction((s) => ({ ...s, viewport: fitViewport(scene.scene, viewSizeRef.current.w, viewSizeRef.current.h) }));
+    } else if (e.key === 'Escape' && (interaction.selection || interaction.focus)) {
+      e.preventDefault();
+      setInteraction((s) => ({ ...s, focus: null }));
+      if (interaction.selection) select(null);
+    } else if (e.key === 'Enter' && interaction.selection) {
+      onOpenNodeRef.current?.(interaction.selection);
+    }
+  }, [scene, interaction.selection, interaction.focus, select]);
 
   const switchBackend = (id: BackendId) => {
     const avail = isBackendAvailable(id);
@@ -242,97 +308,28 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
     }
   };
 
-  if (!scene) return <div className="p-4 text-xs text-ink-400">no scene available</div>;
+  const toggleRelation = (r: LineageRelation) => setInteraction((s) => {
+    const next = new Set(s.hiddenRelations);
+    if (next.has(r)) next.delete(r); else next.add(r);
+    return { ...s, hiddenRelations: next };
+  });
+
+  const toggleFocus = () => {
+    if (interaction.selection && scene) {
+      const id = interaction.selection;
+      setInteraction((s) => ({ ...s, focus: s.focus ? null : focusSetOf(scene.scene, id) }));
+    }
+  };
+
+  if (!scene) return <div className="p-4 text-xs text-fg-3">no scene available</div>;
 
   const selectedNode = scene.scene.nodes.find((n) => n.id === interaction.selection) ?? null;
+  const vp = interaction.viewport;
+  const dot = Math.max(10, 28 * vp.scale);
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="lineage-explorer">
-      {/* Toolbar */}
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-ink-700/70 bg-ink-900/60 px-3 py-2">
-        <select
-          value={sceneId}
-          onChange={(e) => { setSceneId(e.target.value); }}
-          aria-label="Scene"
-          className="rounded-[4px] border border-ink-600/70 bg-ink-850 px-2 py-1 font-mono text-2xs text-ink-100"
-        >
-          {scenes.map((s) => (
-            <option key={s.id} value={s.id}>{s.label}{s.synthetic ? ' (synthetic)' : ''}</option>
-          ))}
-        </select>
-
-        <select
-          value={backend}
-          onChange={(e) => switchBackend(e.target.value as BackendId)}
-          aria-label="Renderer backend"
-          className="rounded-[4px] border border-ink-600/70 bg-ink-850 px-2 py-1 font-mono text-2xs text-ink-100"
-        >
-          <option value="webgl2-instanced">WebGL2 instanced</option>
-          <option value="svg-dom">SVG (DOM)</option>
-        </select>
-
-        <input
-          value={interaction.query}
-          onChange={(e) => setInteraction((s) => ({ ...s, query: e.target.value }))}
-          placeholder="filter by label or id…"
-          aria-label="Filter nodes"
-          className="w-44 rounded-[4px] border border-ink-600/70 bg-ink-850 px-2 py-1 font-mono text-2xs text-ink-100 placeholder:text-ink-500"
-        />
-
-        <div className="flex items-center gap-1">
-          {ALL_RELATIONS.map((r) => {
-            const hidden = interaction.hiddenRelations.has(r);
-            return (
-              <button
-                key={r}
-                onClick={() => setInteraction((s) => {
-                  const next = new Set(s.hiddenRelations);
-                  if (next.has(r)) next.delete(r); else next.add(r);
-                  return { ...s, hiddenRelations: next };
-                })}
-                aria-pressed={!hidden}
-                title={RELATION_LABEL[r]}
-                className={`rounded-[3px] border px-1.5 py-0.5 font-mono text-[9px] tracking-wider transition-opacity ${hidden ? 'border-ink-700/50 text-ink-600 opacity-40' : 'border-ink-600/60 text-ink-300'}`}
-              >
-                <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full" style={{ background: RELATION_STYLE_HEX[r].stroke }} aria-hidden />
-                {RELATION_LABEL[r]}
-              </button>
-            );
-          })}
-        </div>
-
-        <button
-          onClick={() => {
-            if (interaction.selection && scene) {
-              const id = interaction.selection;
-              setInteraction((s) => ({ ...s, focus: s.focus ? null : focusSetOf(scene.scene, id) }));
-            }
-          }}
-          disabled={!interaction.selection}
-          className={`rounded-[4px] border px-2 py-1 font-mono text-2xs transition-colors disabled:opacity-40 ${interaction.focus ? 'border-teal-accent/60 bg-teal-accent/10 text-teal-accent' : 'border-ink-600/70 bg-ink-850 text-ink-300 hover:text-ink-100'}`}
-        >
-          focus lineage (f)
-        </button>
-        <button onClick={fitToScene} className="rounded-[4px] border border-ink-600/70 bg-ink-850 px-2 py-1 font-mono text-2xs text-ink-300 hover:text-ink-100">
-          fit (0)
-        </button>
-        <button
-          onClick={() => setShowDiagnostics((v) => !v)}
-          className={`rounded-[4px] border px-2 py-1 font-mono text-2xs ${showDiagnostics ? 'border-teal-accent/50 text-teal-accent' : 'border-ink-600/70 bg-ink-850 text-ink-300 hover:text-ink-100'}`}
-        >
-          diagnostics
-        </button>
-
-        <span className="ml-auto font-mono text-2xs text-ink-400">
-          {visible.size}/{scene.scene.nodes.length} nodes · LOD {lod} · {Math.round(interaction.viewport.scale * 100)}%
-        </span>
-      </div>
-
-      {backendIssue && (
-        <p className="shrink-0 border-b border-amber-accent/30 bg-amber-accent/5 px-3 py-1 font-mono text-2xs text-amber-accent">{backendIssue}</p>
-      )}
-
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
         {/* Graph viewport */}
         <div
           ref={hostRef}
@@ -340,127 +337,116 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
           onKeyDown={onKeyDown}
           role="application"
           aria-label="Lineage graph viewport — drag to pan, scroll to zoom, arrow keys to move selection"
-          className="relative min-h-0 flex-1 cursor-grab overflow-hidden bg-ink-950 outline-none focus:ring-1 focus:ring-teal-accent/40"
+          className="relative min-h-0 flex-1 cursor-grab overflow-hidden bg-surface-0 outline-none focus-visible:shadow-focus-inset"
         >
-          {/* DOM text overlay (WebGL backend draws shapes only) */}
-          <div ref={overlayRef} className="pointer-events-none absolute inset-0">
-            {backend === 'webgl2-instanced' && lod !== 'dots' && visible.size <= 2000 && scene.scene.nodes
-              .filter((n) => visible.has(n.id) && scene.scene.layout.positions[n.id])
-              .map((n) => {
-                const p = scene.scene.layout.positions[n.id];
-                const enc = scene.scene.encoding;
-                const sx = (20 + p.column * enc.columnGap) * interaction.viewport.scale + interaction.viewport.x;
-                const sy = (20 + p.row * enc.rowGap) * interaction.viewport.scale + interaction.viewport.y;
-                if (sx < -220 || sy < -60 || sx > viewSizeRef.current.w + 40 || sy > viewSizeRef.current.h + 40) return null;
-                const dim = interaction.focus && !interaction.focus.has(n.id);
-                return (
-                  <div key={n.id} className="absolute" style={{ left: sx + 10 * interaction.viewport.scale, top: sy + 6 * interaction.viewport.scale, opacity: dim ? 0.15 : 1 }}>
-                    <div className="font-mono text-[8px] tracking-wider" style={{ color: CLASSIFICATION_TAG[n.classification].color }}>
-                      {CLASSIFICATION_TAG[n.classification].label} · {PROVENANCE_BADGE[n.provenance].label}
-                    </div>
-                    {lod === 'full' && (
-                      <div className="max-w-[170px] truncate text-[10.5px]" style={{ color: RAW.fg1 }}>{n.label}</div>
-                    )}
-                    {lod === 'full' && (
-                      <div className="font-mono text-[8px]" style={{ color: RAW.fg3 }}>{n.sessionId ?? 'trajectory not in registry'}</div>
-                    )}
-                  </div>
-                );
-              })}
-          </div>
+          {/* A dot grid that pans and zooms with the graph: orientation without ink. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{
+              backgroundImage: 'radial-gradient(rgba(236,232,223,0.10) 1px, transparent 1.2px)',
+              backgroundSize: `${dot}px ${dot}px`,
+              backgroundPosition: `${vp.x}px ${vp.y}px`,
+            }}
+          />
+          {/* DOM text overlay (the WebGL backend draws shapes only) */}
+          {backend === 'webgl2-instanced' && (
+            <NodeOverlay scene={scene.scene} visible={visible} viewport={vp} size={size} focus={interaction.focus} lod={lod} />
+          )}
 
-          {selectedNode && (
-            <div className="absolute bottom-3 left-3 max-w-sm rounded-[4px] border border-ink-700/70 bg-ink-900/95 p-2.5">
-              <div className="flex items-center gap-2 font-mono text-2xs">
-                <span style={{ color: CLASSIFICATION_TAG[selectedNode.classification].color }}>{CLASSIFICATION_TAG[selectedNode.classification].label}</span>
-                <span style={{ color: PROVENANCE_BADGE[selectedNode.provenance].color }}>{PROVENANCE_BADGE[selectedNode.provenance].label}</span>
-                <span className="text-ink-500">{selectedNode.id}</span>
-              </div>
-              <p className="mt-1 text-xs text-ink-100">{selectedNode.label}</p>
-              <p className="mt-1 text-2xs leading-relaxed text-ink-400">{selectedNode.provenanceReason}</p>
-              <p className="mt-1 font-mono text-2xs text-ink-500">
-                coordinates: {selectedNode.coordinates.recorded} recorded / {selectedNode.coordinates.unavailable} unavailable
-              </p>
+          {visible.size === 0 && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <p className="rounded-ctl border border-line bg-surface-1 px-4 py-3 font-mono text-2xs text-fg-2">no node matches “{interaction.query}”</p>
             </div>
           )}
         </div>
 
-        {/* Diagnostics side panel */}
+        {/* Floating controls: they sit beside the viewport, so using them never starts a pan. */}
+        <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-3">
+          <div className="pointer-events-auto flex items-center gap-2 rounded-panel border border-line bg-surface-1/95 p-1.5 shadow-pop">
+            <SearchField
+              value={interaction.query}
+              onChange={(query) => setInteraction((s) => ({ ...s, query }))}
+              placeholder="Filter by label or id"
+              label="Filter nodes"
+              className="w-48"
+            />
+            <Button
+              onClick={toggleFocus}
+              disabled={!interaction.selection}
+              active={interaction.focus !== null}
+              leading={<Crosshair className="h-3 w-3" aria-hidden />}
+              title="Dim everything except the selected execution's ancestors and descendants (f)"
+            >
+              focus lineage
+            </Button>
+            <Button onClick={fitToScene} leading={<Maximize2 className="h-3 w-3" aria-hidden />} title="Fit the whole graph (0)">fit</Button>
+          </div>
+          <div className="pointer-events-auto">
+            <ExplorerKey open={keyOpen} onToggle={() => setKeyOpen((o) => !o)} hidden={interaction.hiddenRelations} onToggleRelation={toggleRelation} backend={backend} />
+          </div>
+        </div>
+
+        {scene.synthetic && (
+          <div className="pointer-events-none absolute inset-x-0 top-[64px] flex justify-center">
+            <span className="hatch rounded-tag border border-line-strong bg-surface-1 px-3 py-1 font-mono text-2xs font-semibold tracking-[0.12em] text-fg-1">
+              SYNTHETIC FIXTURE · {scene.scene.nodes.length} NODES · A STRESS SCENE, NOT A RESULT
+            </span>
+          </div>
+        )}
+
+        {selectedNode && (
+          <div className="pointer-events-none absolute bottom-3 left-3 max-w-[340px] rounded-panel border border-line-strong bg-surface-1/95 p-3 shadow-pop">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-2xs">
+              <span style={{ color: CLASSIFICATION_TAG[selectedNode.classification].color }}>{CLASSIFICATION_TAG[selectedNode.classification].label}</span>
+              <ProvMark kind={PROV_KIND[selectedNode.provenance]} title={PROVENANCE_BADGE[selectedNode.provenance].label} />
+              <span className="text-fg-3">{selectedNode.id}</span>
+            </div>
+            <p className="mt-1.5 text-xs font-medium text-fg-1">{selectedNode.label}</p>
+            <p className="mt-1 text-2xs leading-relaxed text-fg-3">{selectedNode.provenanceReason}</p>
+            <p className="mt-1.5 font-mono text-2xs text-fg-3">
+              coordinates: {selectedNode.coordinates.recorded} recorded / {selectedNode.coordinates.unavailable} unavailable
+            </p>
+          </div>
+        )}
+
         {showDiagnostics && (
-          <aside aria-label="Rendering diagnostics" className="w-[340px] shrink-0 space-y-3 overflow-y-auto border-l border-ink-700/70 bg-ink-900 p-3">
-            <h2 className="font-mono text-2xs uppercase tracking-widest text-ink-300">diagnostics — measured values only</h2>
-            <dl className="space-y-1 font-mono text-2xs">
-              <Row k="backend" v={backend} />
-              <Row k="scene id" v={scene.scene.sceneId} />
-              <Row k="schema version" v={`v${scene.scene.schemaVersion}`} />
-              <Row k="nodes / edges" v={`${scene.scene.nodes.length} / ${scene.scene.edges.length}`} />
-              <Row k="nodes visible (filter)" v={String(visible.size)} />
-              <Row k="lod tier" v={`${lod} (full ≥ ${LOD_THRESHOLDS.full}, labels ≥ ${LOD_THRESHOLDS.labels})`} />
-              <Row k="device pixel ratio" v={String(window.devicePixelRatio || 1)} />
-              <Row k="backend details" v={backendDetails || 'not reported'} />
-              <Row k="rAF cadence" v={fps === 'unmeasured' ? 'unmeasured — run a probe' : fps ? `${fps.median.toFixed(1)} median / ${fps.min.toFixed(1)} worst (rAF interval, not GPU time)` : 'unavailable (no rAF loop)'} />
-            </dl>
-
-            <button onClick={runMeasurements} className="w-full rounded-[4px] border border-teal-accent/40 bg-teal-accent/10 px-2 py-1.5 font-mono text-2xs text-teal-accent hover:bg-teal-accent/15">
-              run measurement pass on all scenes ({backend})
-            </button>
-
-            {measurements.length === 0 ? (
-              <p className="text-2xs leading-relaxed text-ink-500">
-                no measurements recorded yet. Figures appear here only after a measurement pass — nothing is estimated, carried over, or invented.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {measurements.map((m) => (
-                  <div key={`${m.backendId}-${m.nodeCount}`} className="rounded-[4px] border border-ink-700/50 bg-ink-850 p-2">
-                    <div className="font-mono text-2xs text-ink-200">{m.nodeCount} nodes · {m.edgeCount} edges</div>
-                    {m.timings.map((t) => (
-                      <div key={t.kind} className="mt-1 font-mono text-2xs text-ink-400">
-                        {t.kind}: <span className="text-ink-100">{t.medianMs.toFixed(2)} ms</span>
-                        <span className="text-ink-600"> [{t.minMs.toFixed(2)}–{t.maxMs.toFixed(2)}, n={t.runs}]</span>
-                      </div>
-                    ))}
-                    {m.unmeasured.map((u) => (
-                      <div key={u.kind} className="mt-0.5 font-mono text-2xs text-ink-600">{u.kind}: unmeasured — {u.reason}</div>
-                    ))}
-                  </div>
-                ))}
-                <p className="text-2xs leading-relaxed text-ink-500">
-                  medians over 7 timed runs after 3 warm-up runs, performance.now(). These are main-thread CPU submission costs — they do not include GPU execution time, which the main thread cannot observe. Runs are in-page and untuned; treat small differences as noise.
-                </p>
-              </div>
-            )}
-
-            <h3 className="border-t border-ink-700/70 pt-3 font-mono text-2xs uppercase tracking-widest text-ink-300">scene PoC — heatmap</h3>
-            <HeatmapPocView scene={heatmapScene} />
-          </aside>
+          <DiagnosticsPanel
+            backend={backend}
+            scene={scene.scene}
+            visibleCount={visible.size}
+            lod={lod}
+            backendDetails={backendDetails}
+            fps={fps}
+            measurements={measurements}
+            onRun={runMeasurements}
+            heatmap={heatmapScene}
+          />
         )}
       </div>
 
-      {/* Legend */}
-      <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-ink-700/70 bg-ink-900/60 px-3 py-1.5">
-        {ALL_RELATIONS.map((r) => (
-          <span key={r} className="inline-flex items-center gap-1.5 font-mono text-[9px] tracking-wider text-ink-300">
-            <span className="h-1.5 w-1.5 rounded-full" style={{ background: RELATION_STYLE_HEX[r].stroke }} aria-hidden />
-            {RELATION_LABEL[r]}
-          </span>
-        ))}
-        <span className="ml-auto inline-flex items-center gap-2 font-mono text-[9px] text-ink-500">
-          {(Object.keys(PROVENANCE_BADGE) as (keyof typeof PROVENANCE_BADGE)[]).map((p) => (
-            <span key={p} style={{ color: PROVENANCE_BADGE[p].color }}>{PROVENANCE_BADGE[p].label}</span>
+      {backendIssue && (
+        <p className="shrink-0 border-t border-attn/40 bg-attn/10 px-3 py-1 font-mono text-2xs text-attn">{backendIssue}</p>
+      )}
+
+      {/* Renderer bar: what is being drawn, and how */}
+      <div className="flex h-9 shrink-0 items-center gap-3 border-t border-line bg-surface-1 px-3">
+        <span className="eyebrow">Scene</span>
+        <select value={sceneId} onChange={(e) => setSceneId(e.target.value)} aria-label="Scene" className={selectCls}>
+          {scenes.map((s) => (
+            <option key={s.id} value={s.id}>{s.label}{s.synthetic ? ' (synthetic)' : ''}</option>
           ))}
-          <span>evidence provenance: OBS observed / REP reported / DER derived / N/A not-applicable — replay status is a continuation kind, not provenance</span>
+        </select>
+        <span className="eyebrow">Renderer</span>
+        <select value={backend} onChange={(e) => switchBackend(e.target.value as BackendId)} aria-label="Renderer backend" className={selectCls}>
+          <option value="webgl2-instanced">WebGL2 instanced</option>
+          <option value="svg-dom">SVG (DOM)</option>
+        </select>
+        <Button onClick={() => setShowDiagnostics((v) => !v)} active={showDiagnostics} leading={<Gauge className="h-3 w-3" aria-hidden />}>diagnostics</Button>
+        <span className="ml-auto font-mono text-2xs text-fg-3 tnum">
+          {visible.size}/{scene.scene.nodes.length} nodes · LOD {lod} · {Math.round(vp.scale * 100)}%
         </span>
       </div>
-    </div>
-  );
-}
-
-function Row({ k, v }: { k: string; v: string }) {
-  return (
-    <div className="grid grid-cols-[130px_1fr] items-baseline gap-2">
-      <dt className="text-ink-500">{k}</dt>
-      <dd className="min-w-0 break-words text-ink-200">{v}</dd>
     </div>
   );
 }

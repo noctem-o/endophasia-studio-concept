@@ -78,6 +78,8 @@ export function createSvgRenderer(): CreateRendererResult {
       rootGroup.appendChild(edgeLayer);
       rootGroup.appendChild(nodeLayer);
       svg.appendChild(rootGroup);
+      // Attach to the host. Without this the SVG is built and never shown: the backend drew nothing in a real browser.
+      h.appendChild(svg);
 
       h.addEventListener('click', (ev: MouseEvent) => {
         const nodeId = renderer.hitTest(ev.clientX, ev.clientY);
@@ -141,11 +143,11 @@ export function createSvgRenderer(): CreateRendererResult {
           stroke: selected ? paint.stroke.hex : 'none', 'stroke-width': selected ? 1.5 : 0,
         });
         const ring = el('rect', { width: NODE_W, height: NODE_H, rx: 4, fill: 'none', stroke: paint.stroke.hex, 'stroke-opacity': selected ? 0 : paint.stroke.alpha, 'stroke-width': 1, ...(paint.hollow ? { 'stroke-dasharray': '4 3' } : {}) });
-        const tagText = el('text', { x: 10, y: 17, fill: tag.color, 'font-size': 8, 'font-family': 'IBM Plex Mono, monospace', 'letter-spacing': 1.2 });
+        const tagText = el('text', { x: 10, y: 17, fill: tag.color, 'font-size': 9, 'font-family': 'IBM Plex Mono, monospace', 'letter-spacing': 0.8 });
         tagText.textContent = tag.label;
-        const label = el('text', { x: 10, y: 31, fill: RAW.fg1, 'font-size': 10.5, 'font-family': 'IBM Plex Sans, sans-serif' });
-        label.textContent = n.label.length > 26 ? n.label.slice(0, 25) + '…' : n.label;
-        const sub = el('text', { x: 10, y: 41, fill: RAW.fg3, 'font-size': 8, 'font-family': 'IBM Plex Mono, monospace' });
+        const label = el('text', { x: 10, y: 31, fill: RAW.fg1, 'font-size': 11, 'font-family': 'IBM Plex Sans, sans-serif' });
+        label.textContent = n.label.length > 25 ? n.label.slice(0, 24) + '…' : n.label;
+        const sub = el('text', { x: 10, y: 41, fill: RAW.fg3, 'font-size': 9, 'font-family': 'IBM Plex Mono, monospace' });
         sub.textContent = n.sessionId ? n.sessionId : 'trajectory not in registry';
         g.appendChild(bg);
         g.appendChild(ring);
@@ -153,14 +155,22 @@ export function createSvgRenderer(): CreateRendererResult {
         g.appendChild(label);
         g.appendChild(sub);
 
-        // Provenance badge — OBS/REP/DER/N-A made explicit on the node.
-        const provBadge = el('text', { x: NODE_W - 10, y: 17, fill: prov.color, 'font-size': 7.5, 'text-anchor': 'end', 'font-family': 'IBM Plex Mono, monospace', 'letter-spacing': 0.8 });
+        // Provenance badge: the class's SHAPE (disc / half / diamond / dashed ring) plus its three letters, so it survives colour-blindness.
+        const provBadge = el('text', { x: NODE_W - 10, y: 17, fill: prov.color, 'font-size': 9, 'text-anchor': 'end', 'font-family': 'IBM Plex Mono, monospace', 'letter-spacing': 0.8 });
         provBadge.textContent = prov.label;
         g.appendChild(provBadge);
+        const gx = NODE_W - 10 - prov.label.length * 6.2 - 7;
+        const gy = 14;
+        if (prov.glyph === 'disc') g.appendChild(el('circle', { cx: gx, cy: gy, r: 3.4, fill: prov.color }));
+        else if (prov.glyph === 'half') {
+          g.appendChild(el('circle', { cx: gx, cy: gy, r: 3.1, fill: 'none', stroke: prov.color, 'stroke-width': 1.1 }));
+          g.appendChild(el('path', { d: `M${gx} ${gy - 3.1}a3.1 3.1 0 0 0 0 6.2z`, fill: prov.color }));
+        } else if (prov.glyph === 'diamond') g.appendChild(el('path', { d: `M${gx} ${gy - 4}l4 4l-4 4l-4 -4z`, fill: prov.color }));
+        else g.appendChild(el('circle', { cx: gx, cy: gy, r: 3.1, fill: 'none', stroke: prov.color, 'stroke-width': 1, 'stroke-dasharray': '1.6 1.4' }));
 
+        // Explicit gap marker: no trajectory in the observation registry. A hollow dashed ring (the N/A shape), clear of the badge.
         if (n.sessionId === null) {
-          const gap = el('circle', { cx: NODE_W - 12, cy: 12, r: 4, fill: RAW.attention, 'fill-opacity': 0.3, stroke: RAW.attention, 'stroke-width': 1, 'stroke-dasharray': '2 2' });
-          g.appendChild(gap);
+          g.appendChild(el('circle', { cx: NODE_W - 12, cy: NODE_H - 10, r: 4, fill: 'none', stroke: RAW.na, 'stroke-width': 1.2, 'stroke-dasharray': '2 1.8' }));
         }
 
       nodeLayer.appendChild(g);
