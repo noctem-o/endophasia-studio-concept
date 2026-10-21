@@ -99,12 +99,16 @@ The fixture layer is deliberately separated from the domain types: a future impl
 ```bash
 npm run lint        # eslint, clean
 npm run typecheck   # tsc --noEmit, clean
-npx vitest run      # 64 tests: fixture validation, alignment semantics,
-                    # missing-usage invariants, intervention lifecycles, and
-                    # the EVOLVE suite — coordinate declarations, comparability
-                    # verdicts, Wilson-interval math, cell statistics with
-                    # honest denominators, corpus referential integrity,
-                    # checkpoint forkability, promotion-stage ordering
+npm test            # 124 tests, 5 files: fixture validation, alignment
+                    # semantics, missing-usage invariants, intervention
+                    # lifecycles, the EVOLVE suite — coordinate declarations,
+                    # comparability verdicts, Wilson-interval math, cell
+                    # statistics with honest denominators, corpus referential
+                    # integrity, checkpoint forkability, promotion-stage
+                    # ordering — plus the Phase IV scene suite: coordinate
+                    # round-trips, deterministic scene building, provenance
+                    # (evidence) vs classification (continuation kind),
+                    # WebGL resource lifecycle, and synthetic stress fixtures
 npm run build       # production build
 ```
 
