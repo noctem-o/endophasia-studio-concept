@@ -91,6 +91,20 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
   const visible = useMemo(() => (scene ? filteredVisibleNodes(scene.scene, interaction) : new Set<string>()), [scene, interaction]);
   const lod = lodTier(interaction.viewport.scale);
 
+  // What the renderer is actually GIVEN. Hidden relations remove their edges from a VIEW of the scene (the nodes and the scene
+  // itself are untouched), and the text filter and lineage focus decide which nodes stay at full emphasis. Previously neither
+  // reached the renderer: the filter changed only the node count, and the relation toggles changed nothing at all.
+  const drawn = useMemo(
+    () => (!scene ? null : interaction.hiddenRelations.size === 0 ? scene.scene : { ...scene.scene, edges: scene.scene.edges.filter((e) => !interaction.hiddenRelations.has(e.relation)) }),
+    [scene, interaction.hiddenRelations],
+  );
+  const emphasis = useMemo(() => {
+    const filtering = interaction.query.trim() !== '';
+    if (!filtering && !interaction.focus) return null;
+    if (filtering && interaction.focus) return new Set([...visible].filter((id) => interaction.focus!.has(id)));
+    return filtering ? visible : interaction.focus;
+  }, [interaction.query, interaction.focus, visible]);
+
   const interactionRef = useRef(interaction);
   interactionRef.current = interaction;
   const onOpenNodeRef = useRef(onOpenNode);
@@ -121,10 +135,10 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
         select(id);
       },
     });
-    renderer.setScene(scene.scene);
+    renderer.setScene(drawn ?? scene.scene);
     renderer.setViewport(interaction.viewport);
     renderer.setSelection(interaction.selection);
-    renderer.setHighlight(interaction.focus);
+    renderer.setHighlight(emphasis);
     setBackendDetails(renderer.info.details);
 
     return () => {
@@ -137,8 +151,8 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
 
   useEffect(() => { rendererRef.current?.setViewport(interaction.viewport); }, [interaction.viewport]);
   useEffect(() => { rendererRef.current?.setSelection(interaction.selection); }, [interaction.selection]);
-  useEffect(() => { rendererRef.current?.setHighlight(interaction.focus); }, [interaction.focus]);
-  useEffect(() => { if (scene) rendererRef.current?.setScene(scene.scene); }, [scene]);
+  useEffect(() => { rendererRef.current?.setHighlight(emphasis); }, [emphasis]);
+  useEffect(() => { if (drawn) rendererRef.current?.setScene(drawn); }, [drawn]);
 
   // ── Resize handling; the first real size fits the graph ───────────────────
   useEffect(() => {

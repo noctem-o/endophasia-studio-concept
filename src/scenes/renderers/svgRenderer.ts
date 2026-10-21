@@ -51,6 +51,11 @@ export function createSvgRenderer(): CreateRendererResult {
     details: 'one SVG element per graph element; DOM hit-testing; text via <text>',
   };
 
+  // Dimming lives on the node groups, which setScene rebuilds (and selection rebuilds the scene), so it is reapplied after every build.
+  const applyHighlight = () => {
+    for (const [id, g] of nodeEls) g.setAttribute('opacity', highlight !== null && !highlight.has(id) ? '0.25' : '1');
+  };
+
   const applyTransform = () => {
     // Convention: screen = world * scale + offset. Applied to the content
     // group — the outer <svg> is a fixed-size viewport element and ignores a
@@ -178,6 +183,7 @@ export function createSvgRenderer(): CreateRendererResult {
       void nodeById;
       }
       applyTransform();
+      applyHighlight();
     },
     setViewport(vp) {
       viewport = vp;
@@ -189,12 +195,7 @@ export function createSvgRenderer(): CreateRendererResult {
     },
     setHighlight(ids) {
       highlight = ids;
-      if (!nodeLayer) return;
-      for (const [id, g] of nodeEls) {
-        const dimmed = highlight !== null && !highlight.has(id);
-        g.setAttribute('opacity', dimmed ? '0.25' : '1');
-      }
-      void scene;
+      applyHighlight();
     },
     resize(w, h) {
       width = w;
