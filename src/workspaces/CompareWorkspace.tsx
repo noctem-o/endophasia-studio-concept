@@ -38,7 +38,7 @@ export function CompareWorkspace({ studio }: { studio: StudioState }) {
   const [focusClass, setFocusClass] = useState<LinkClass | null>(null);
 
   // A different pair of trajectories is a different alignment: nothing carries over.
-  useEffect(() => { setSelected(null); setHover(null); }, [a.id, b.id]);
+  useEffect(() => { setSelected(null); setHover(null); setFocusClass(null); }, [a.id, b.id]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (isPlainShortcut(e) && e.key === 'Escape') setSelected(null); };
     window.addEventListener('keydown', onKey);

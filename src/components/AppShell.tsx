@@ -30,11 +30,11 @@ export function AppHeader({ workspace, onWorkspace, onHelp }: {
                 aria-pressed={active}
                 aria-keyshortcuts={key}
                 title={`${blurb} (${key})`}
-                className={`relative flex items-center gap-1.5 px-3 text-xs font-medium transition-colors duration-100 ${active ? 'text-fg-1' : 'text-fg-3 hover:text-fg-1'}`}
+                className={`relative flex items-center gap-1.5 px-2 text-xs md:px-3 font-medium transition-colors duration-100 ${active ? 'text-fg-1' : 'text-fg-3 hover:text-fg-1'}`}
               >
                 <Icon className="h-3.5 w-3.5" aria-hidden />
                 {label}
-                <span aria-hidden className="ml-0.5 font-mono text-2xs text-fg-3">{key}</span>
+                <span aria-hidden className="ml-0.5 hidden font-mono text-2xs text-fg-3 md:inline">{key}</span>
                 <span aria-hidden className={`absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-select transition-opacity duration-100 ${active ? 'opacity-100' : 'opacity-0'}`} />
               </button>
             );

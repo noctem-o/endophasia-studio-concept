@@ -44,7 +44,7 @@ test.describe('SVG backend (independent of WebGL2)', () => {
     const g = page.locator('[role="application"] svg [data-node-id]').first();
     const p = await centre(g);
     await page.mouse.click(p.x, p.y);
-    await expect(status(page)).toContainText('lineage · ');
+    await expect(status(page)).toContainText(/lineage · exec-/);
     const host = (await viewport(page).boundingBox())!;
     await page.mouse.click(host.x + host.width * 0.12, host.y + host.height * 0.5);
     await expect(status(page)).toContainText('nothing selected');
@@ -79,7 +79,7 @@ test.describe('SVG backend (independent of WebGL2)', () => {
   test('keyboard: arrows move the selection, f focuses its lineage, Escape unwinds focus then selection', async ({ page }) => {
     await viewport(page).focus();
     await page.keyboard.press('ArrowDown');
-    await expect(status(page)).toContainText('lineage · ');
+    await expect(status(page)).toContainText(/lineage · exec-/);
     const first = await status(page).innerText();
     await page.keyboard.press('ArrowDown');
     expect(await status(page).innerText()).not.toEqual(first);
@@ -87,7 +87,7 @@ test.describe('SVG backend (independent of WebGL2)', () => {
     await expect.poll(() => dimmedGroups(page).count()).toBeGreaterThan(0);
     await page.keyboard.press('Escape');
     await expect(dimmedGroups(page)).toHaveCount(0);
-    await expect(status(page)).toContainText('lineage · ');
+    await expect(status(page)).toContainText(/lineage · exec-/);
     await page.keyboard.press('Escape');
     await expect(status(page)).toContainText('nothing selected');
   });
@@ -318,5 +318,27 @@ test.describe('WebGL2 backend (software-rendered here: correctness, never hardwa
     await useBackend(page, 'svg-dom');
     await expect(panel.getByText(/No measurements recorded yet/)).toBeVisible();
     await expect(panel.getByText(/webgl2-instanced \(/)).toHaveCount(0);
+  });
+});
+
+test.describe('what the lab remembers across tabs', () => {
+  test('a node picked in a synthetic stress scene is not restored into the recorded graph', async ({ page }) => {
+    await goEvolve(page);
+    await useBackend(page, 'svg-dom');
+    const scene = page.getByLabel('Scene', { exact: true });
+    const stress = await scene.locator('option', { hasText: '100 nodes' }).getAttribute('value');
+    await scene.selectOption(stress!);
+    await expect(nodeGroups(page)).toHaveCount(100);
+    const first = page.locator('[role="application"] svg [data-node-id]').first();
+    const p = await centre(first);
+    await page.mouse.click(p.x, p.y);
+    await expect(status(page)).toContainText(/lineage · \S+/);
+    await expect(status(page)).not.toContainText('nothing selected');
+    await page.getByRole('tab', { name: /Experiments/ }).click();
+    await page.getByRole('tab', { name: /Lineage/ }).click();
+    // Back on the default recorded scene (and its default renderer): the graph is the recorded one and nothing from the stress scene is selected.
+    await useBackend(page, 'svg-dom');
+    await expect(nodeGroups(page)).toHaveCount(13);
+    await expect(status(page)).toContainText('nothing selected');
   });
 });

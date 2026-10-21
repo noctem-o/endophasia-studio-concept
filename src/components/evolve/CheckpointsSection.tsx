@@ -46,7 +46,7 @@ export function CheckpointsSection({ corpus, checkpointId, onSelect, onOpenExecu
   if (!cp) return null;
   const support = continuationSupport(cp);
   const exp = corpus.experiments.find((x) => x.checkpointId === cp.id);
-  const branches = corpus.edges.filter((e) => e.note?.includes(cp.id) || (e.relation === 'simulated_branch' && e.note?.includes('ckpt')));
+  const branches = corpus.edges.filter((e) => e.note?.includes(cp.id));
   const missing = (Object.keys(STATE_LABELS) as (keyof Checkpoint['state'])[]).filter((k) => !cp.state[k].present);
 
   return (

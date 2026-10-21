@@ -58,5 +58,6 @@ as an SVG-only extra. Neither backend's resource management, coordinate transfor
   size). It is unchanged: shader work was out of scope.
 - WebGL was verified only under a software rasteriser (locally, and in CI), never on a physical GPU. Under tritanopia the WebGL relation lines are weak (evaluated-against and
   replay are both pale cyan-greens); the key, the toggles and the inspector name each relation.
+- Below 768px the shell drops the digit hints beside the workspace names, and the Evolve record list becomes a short scrolling strip above the dossier (it was hidden, leaving no way to pick another record).
 - Below 1024px the inspectors are modal dialogs (focus moves in and returns, Tab is trapped, the page is inert, and the page shortcuts stand down); the overview and the Compare map are designed for desktop and laptop widths.
 - The lineage layout (layered longest-path) is the scene's declared algorithm and is unchanged, so long edges still cross.

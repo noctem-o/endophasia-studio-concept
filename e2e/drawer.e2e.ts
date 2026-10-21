@@ -129,3 +129,19 @@ test('at desktop width the inspector is a plain region: no dialog, no trap, noth
   await page.keyboard.press('Tab');
   expect(await page.evaluate(() => document.activeElement !== document.body)).toBe(true);
 });
+
+test('narrow Evolve: every record in a section stays reachable (the list does not disappear below md)', async ({ page }) => {
+  await page.setViewportSize({ width: 700, height: 800 });
+  await page.getByRole('button', { name: 'Evolve', exact: true }).click();
+  for (const tab of ['Experiments', 'Candidates', 'Checkpoints']) {
+    await page.getByRole('tab', { name: new RegExp(tab) }).click();
+    const items = page.locator('li button[aria-current]').first().locator('xpath=ancestor::ul[1]').locator('li button');
+    const n = await items.count();
+    expect(n, `${tab}: more than one record to choose from`).toBeGreaterThan(1);
+    await expect(items.last()).toBeVisible();
+    await items.last().click();
+    await expect(items.last()).toHaveAttribute('aria-current', 'true');
+    await expect(items.first()).not.toHaveAttribute('aria-current', 'true');
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});

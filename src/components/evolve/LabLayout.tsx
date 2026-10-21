@@ -3,8 +3,9 @@ import type { ReactNode } from 'react';
 /** Three columns: a list of records, a dossier on the selected one, and an inspector. Used by every lab section but the graph. */
 export function Split({ list, children, inspector }: { list: ReactNode; children: ReactNode; inspector?: ReactNode }) {
   return (
-    <div className="flex h-full min-h-0">
-      <div className="hidden w-[272px] shrink-0 flex-col border-r border-line bg-surface-1 md:flex 2xl:w-[300px]">{list}</div>
+    <div className="flex h-full min-h-0 flex-col md:flex-row">
+      {/* Below md the list sits above the dossier (a short scrolling strip) instead of disappearing: it is the only way to pick a record. */}
+      <div className="flex max-h-[30vh] w-full shrink-0 flex-col border-b border-line bg-surface-1 md:max-h-none md:w-[272px] md:border-b-0 md:border-r 2xl:w-[300px]">{list}</div>
       <div className="min-w-0 flex-1 overflow-y-auto scrollbar-thin">{children}</div>
       {inspector}
     </div>

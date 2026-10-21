@@ -38,7 +38,8 @@ export function EvolveWorkspace({ studio }: { studio: StudioState }) {
   const last = useRef<{ execution: string | null; experiment: string; candidate: string; checkpoint: string }>({
     execution: null, experiment: corpus.experiments[0]?.id ?? '', candidate: corpus.candidates[0]?.id ?? '', checkpoint: corpus.checkpoints[0]?.id ?? '',
   });
-  if (view.kind === 'execution') last.current.execution = view.executionId;
+  // A synthetic stress-scene node is not in the corpus; restoring its id would open a record the recorded graph does not show.
+  if (view.kind === 'execution' && corpus.executions.some((x) => x.id === view.executionId)) last.current.execution = view.executionId;
   if (view.kind === 'experiment') last.current.experiment = view.experimentId;
   if (view.kind === 'candidate') last.current.candidate = view.candidateId;
   if (view.kind === 'checkpoint') last.current.checkpoint = view.checkpointId;

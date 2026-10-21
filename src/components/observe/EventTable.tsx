@@ -67,7 +67,10 @@ export function EventTable({ events, selectedId, hoveredId, onSelect, onHover, o
   const tabStop = events.find((e) => e.id === selectedId)?.id ?? events[0]?.id;
 
   const onKeyDown = (e: KeyboardEvent<HTMLTableSectionElement>) => {
-    const i = events.findIndex((x) => x.id === selectedId);
+    // Arrow keys move from the row that has focus (a keyboard user who just tabbed in has focus on the first row, selection on none).
+    const focusedRow = (e.target as HTMLElement).closest('tr');
+    const focusedIndex = focusedRow ? events.findIndex((x) => rowRefs.current.get(x.id) === focusedRow) : -1;
+    const i = focusedIndex >= 0 ? focusedIndex : events.findIndex((x) => x.id === selectedId);
     const move = (to: number) => {
       const target = events[Math.max(0, Math.min(events.length - 1, to))];
       if (!target) return;

@@ -297,8 +297,9 @@ export function LineageExplorer({ scenes, initialSceneId, initialSelection = nul
       if (scene) setInteraction((s) => ({ ...s, viewport: fitComfortably(scene.scene, viewSizeRef.current.w, viewSizeRef.current.h) }));
     } else if (e.key === 'Escape' && (interaction.selection || interaction.focus)) {
       e.preventDefault();
-      setInteraction((s) => ({ ...s, focus: null }));
-      if (interaction.selection) select(null);
+      // Two steps: the first Escape leaves lineage focus and keeps the selection; the next one clears the selection.
+      if (interaction.focus) setInteraction((s) => ({ ...s, focus: null }));
+      else select(null);
     } else if (e.key === 'Enter' && interaction.selection) {
       onOpenNodeRef.current?.(interaction.selection);
     }
