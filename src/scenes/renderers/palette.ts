@@ -45,7 +45,7 @@ export const CLASSIFICATION_TAG: Record<SceneNodeClassification, { label: string
 
 export const PROVENANCE_BADGE: Record<SceneProvenance, { label: string; color: string }> = {
   observed: { label: 'OBS', color: RAW.teal },
-  replayed: { label: 'REP', color: RAW.blue },
+  reported: { label: 'REP', color: RAW.blue },
   derived: { label: 'DER', color: RAW.red },
   'not-applicable': { label: 'N/A', color: RAW.ink400 },
 };

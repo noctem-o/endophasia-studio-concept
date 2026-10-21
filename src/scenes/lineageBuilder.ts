@@ -18,8 +18,11 @@ import { fnv1a, stableStringify } from './digest';
  * - Scientific meaning (identity, provenance, relations, missing information)
  *   is derived once, here, independently of any renderer.
  * - The builder is a pure function: same corpus, same scene, byte-identical.
- * - Provenance is explicit per node (OBS/REP/DER/N-A). Missing information is
- *   carried into the scene as markers, never dropped or filled with defaults.
+ * - Provenance is explicit per node (OBS/REP/DER/N-A) with its reason, and is
+ *   the evidence dimension only: continuation status (replay, simulated
+ *   projection) lives on classification and relations, never on provenance.
+ * - Missing information is carried into the scene as markers, never dropped
+ *   or filled with defaults.
  * - Layout is a declared deterministic algorithm over the scene graph; it is
  *   presentation and carries no scientific meaning.
  */
@@ -37,17 +40,19 @@ export function buildLineageScene(corpus: EvolveCorpus, sceneId = 'evolve-lineag
 
   const armIdsByExec = new Map<string, string[]>();
   for (const arm of corpus.arms) {
+    // arm.executionIds are execution ids; the membership map is keyed by them.
     for (const eid of arm.executionIds) {
       const list = armIdsByExec.get(eid) ?? [];
       list.push(arm.id);
       armIdsByExec.set(eid, list);
     }
   }
+  // An execution may also declare its arm directly.
   for (const exec of corpus.executions) {
-    if (exec.armId && !armIdsByExec.get(exec.armId)?.includes(exec.armId)) {
-      const list = armIdsByExec.get(exec.armId) ?? [];
+    if (exec.armId && !armIdsByExec.get(exec.id)?.includes(exec.armId)) {
+      const list = armIdsByExec.get(exec.id) ?? [];
       list.push(exec.armId);
-      armIdsByExec.set(exec.armId, list);
+      armIdsByExec.set(exec.id, list);
     }
   }
 
@@ -130,6 +135,18 @@ function validateLineageStructure(corpus: EvolveCorpus): SceneIssue[] {
     if (e.from === e.to) issues.push({ severity: 'error', message: `edge ${e.id}: self-loop on ${e.from}` });
   }
 
+  // Duplicate node or edge ids would break stable identity and the digest.
+  const seenExec = new Set<string>();
+  for (const e of corpus.executions) {
+    if (seenExec.has(e.id)) issues.push({ severity: 'error', message: `duplicate execution id ${e.id}` });
+    seenExec.add(e.id);
+  }
+  const seenEdge = new Set<string>();
+  for (const e of corpus.edges) {
+    if (seenEdge.has(e.id)) issues.push({ severity: 'error', message: `duplicate edge id ${e.id}` });
+    seenEdge.add(e.id);
+  }
+
   // Cycle detection over the directed relation graph. A cyclic lineage is not
   // renderable as a layered graph and is invalid as a history.
   const adjacency = new Map<string, string[]>();
@@ -141,7 +158,7 @@ function validateLineageStructure(corpus: EvolveCorpus): SceneIssue[] {
   }
   const state = new Map<string, 'visiting' | 'done'>();
   const cycleAt = new Set<string>();
-  const visit = (id: string, path: string[]): boolean => {
+  const visit = (id: string): boolean => {
     const st = state.get(id);
     if (st === 'visiting') {
       cycleAt.add(id);
@@ -150,7 +167,7 @@ function validateLineageStructure(corpus: EvolveCorpus): SceneIssue[] {
     if (st === 'done') return false;
     state.set(id, 'visiting');
     for (const next of adjacency.get(id) ?? []) {
-      if (visit(next, [...path, id])) {
+      if (visit(next)) {
         state.set(id, 'done');
         return true;
       }
@@ -159,7 +176,7 @@ function validateLineageStructure(corpus: EvolveCorpus): SceneIssue[] {
     return false;
   };
   for (const id of [...execIds].sort()) {
-    if (visit(id, [])) break;
+    if (visit(id)) break;
   }
   for (const id of cycleAt) {
     issues.push({ severity: 'error', message: `lineage cycle through execution ${id} — a history cannot be its own ancestor` });
@@ -182,9 +199,15 @@ function classify(execId: string, corpus: EvolveCorpus): SceneNodeClassification
 }
 
 /**
- * Provenance is assigned once, here, and carries its reason. Recorded
- * trajectories give observed; cassette replays give replayed; deterministic
- * projections give derived; records with neither give not-applicable.
+ * Evidence provenance is assigned once, here, and carries its reason.
+ * OBS: trajectory recorded in the observation registry. REP: outcome known
+ * only from the record's own reporting. DER: deterministic projection — not
+ * a real execution. N-A: not currently produced by the corpus builder; the
+ * value is kept in the vocabulary for records with no evidential basis.
+ *
+ * Continuation status (replay, simulated projection) is deliberately NOT a
+ * provenance value: it lives on classification and relations, per the
+ * corpus's evidence vocabulary where REP means reported, never replay.
  */
 function provenanceOf(exec: EvolveCorpus['executions'][number], corpus: EvolveCorpus): { value: SceneProvenance; reason: string } {
   const derivations = corpus.edges.filter((e) => e.from === exec.id);
@@ -194,13 +217,10 @@ function provenanceOf(exec: EvolveCorpus['executions'][number], corpus: EvolveCo
       reason: 'deterministic projection over a recorded checkpoint prefix — not a real execution; carries no usage rows',
     };
   }
-  if (derivations.some((e) => e.relation === 'replay_of')) {
-    return { value: 'replayed', reason: 'model responses held fixed from a recorded cassette; control-flow reproduction only' };
-  }
   if (exec.sessionId) {
     return { value: 'observed', reason: 'trajectory recorded in the observation registry' };
   }
-  return { value: 'not-applicable', reason: 'no recorded trajectory and no continuation claim — provenance does not apply' };
+  return { value: 'reported', reason: 'no recorded trajectory in the registry; outcome known only from the record itself' };
 }
 
 /**
