@@ -3,7 +3,7 @@ import { MEASUREMENT_DEFINITIONS, type MeasurementBlock } from './renderers/meas
 import type { BackendId } from './renderers';
 import { LOD_THRESHOLDS } from './interaction';
 import type { LodTier } from './interaction';
-import { HeatmapPocView } from './heatmapPoc';
+import { HeatmapPocView } from './HeatmapPocView';
 import type { HeatmapScene } from './heatmapPoc';
 import { Button } from '@/ui/controls';
 

@@ -38,6 +38,7 @@ export function NodeOverlay({ scene, visible, viewport, size, focus, lod }: {
           return (
             <div
               key={n.id}
+              data-overlay-node={n.id}
               className="absolute origin-top-left"
               style={{ left: sx, top: sy, width: enc.nodeWidth, height: enc.nodeHeight, transform: `scale(${k})`, opacity: dim ? 0.15 : 1 }}
             >
