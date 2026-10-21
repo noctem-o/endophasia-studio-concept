@@ -92,13 +92,14 @@ test.describe('SVG backend (independent of WebGL2)', () => {
     await expect(status(page)).toContainText('nothing selected');
   });
 
-  test('the text filter dims what does not match (and nothing is removed), and clears when emptied', async ({ page }) => {
+  test('the text filter dims everything except the matches and their direct neighbours (exactly), and clears when emptied', async ({ page }) => {
+    // "replay" matches exec-replay1 only; its one neighbour is the baseline exec-a. 13 nodes - 2 = 11 dimmed, none removed.
     await page.getByLabel('Filter nodes').fill('replay');
-    await expect.poll(() => dimmedGroups(page).count()).toBeGreaterThan(0);
-    expect(await dimmedGroups(page).count()).toBeLessThan(13);
+    await expect(dimmedGroups(page)).toHaveCount(11);
     await expect(nodeGroups(page)).toHaveCount(13);
-    const label = await page.getByText(/\d+\/13 nodes/).innerText();
-    expect(label).not.toContain('13/13');
+    const kept = await page.locator('[role="application"] svg [data-node-id]:not([opacity="0.25"])').evaluateAll((els) => els.map((e) => e.getAttribute('data-node-id')).sort());
+    expect(kept).toEqual(['exec-a', 'exec-replay1']);
+    await expect(page.getByText(/2\/13 nodes/)).toBeVisible();
     await page.getByLabel('Filter nodes').fill('');
     await expect(dimmedGroups(page)).toHaveCount(0);
   });
@@ -131,6 +132,43 @@ test.describe('SVG backend (independent of WebGL2)', () => {
     await expect(inspector(page).getByRole('heading', { name: 'Baseline reference — proration fix' })).toBeVisible();
     await expect(page.getByTestId('lineage-explorer')).toBeVisible();
     await expect(nodeGroups(page)).toHaveCount(13);
+  });
+});
+
+test.describe('SVG backend: state across scene switches, and what selection does not erase', () => {
+  test.beforeEach(async ({ page }) => { await goEvolve(page); await useBackend(page, 'svg-dom'); });
+
+  test('a scene switch does not leave the old scene\'s selection or focus behind', async ({ page }) => {
+    const p = await centre(page.locator('[role="application"] svg [data-node-id="exec-a"]'));
+    await page.mouse.click(p.x, p.y);
+    await expect(status(page)).toContainText('lineage · exec-a');
+    await viewport(page).focus();
+    await page.keyboard.press('f');
+    await expect.poll(() => dimmedGroups(page).count()).toBeGreaterThan(0);
+    const scene = page.getByLabel('Scene', { exact: true });
+    const stress = await scene.locator('option', { hasText: '100 nodes' }).getAttribute('value');
+    await scene.selectOption(stress!);
+    await expect(nodeGroups(page)).toHaveCount(100);
+    await expect(status(page)).toContainText('nothing selected');
+    await expect(inspector(page).getByText('exec-a', { exact: true })).toHaveCount(0);
+    await expect(dimmedGroups(page)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'focus lineage' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('a selected simulated projection stays hollow and dashed; a selected trial does not', async ({ page }) => {
+    const sim = page.locator('[role="application"] svg [data-node-id="exec-sim1"]');
+    let p = await centre(sim);
+    await page.mouse.click(p.x, p.y);
+    await expect(status(page)).toContainText('lineage · exec-sim1');
+    const bg = sim.locator('rect').first();
+    await expect(bg).toHaveAttribute('stroke-dasharray', /\d/);
+    expect(Number(await bg.getAttribute('fill-opacity'))).toBeLessThan(0.2);
+    const trial = page.locator('[role="application"] svg [data-node-id="exec-r1"]');
+    p = await centre(trial);
+    await page.mouse.click(p.x, p.y);
+    const tbg = trial.locator('rect').first();
+    expect(await tbg.getAttribute('stroke-dasharray')).toBeNull();
+    expect(Number(await tbg.getAttribute('fill-opacity'))).toBe(1);
   });
 });
 
@@ -259,5 +297,26 @@ test.describe('WebGL2 backend (software-rendered here: correctness, never hardwa
     const recorded = await scene.locator('option', { hasText: 'recorded lineage' }).getAttribute('value');
     await scene.selectOption(recorded!);
     await expect.poll(async () => (await canvasPixels(page, GRAPH_CROP)).energy).toBe(before.energy);
+  });
+
+  test('under the filter every text card stays, dimmed, exactly as the SVG backend dims its nodes', async ({ page }) => {
+    await page.getByLabel('Filter nodes').fill('replay');
+    await expect.poll(async () => page.locator('[data-overlay-node]').evaluateAll((els) => els.filter((e) => getComputedStyle(e).opacity === '0.15').length)).toBe(11);
+    await expect(page.locator('[data-overlay-node]')).toHaveCount(13);
+    const full = await page.locator('[data-overlay-node]').evaluateAll((els) => els.filter((e) => getComputedStyle(e).opacity === '1').map((e) => e.getAttribute('data-overlay-node')).sort());
+    expect(full).toEqual(['exec-a', 'exec-replay1']);
+  });
+
+  test('measured figures do not survive a switch of backend, and each block names the backend that produced it', async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.getByRole('button', { name: 'diagnostics' }).click();
+    await page.getByRole('button', { name: /run measurement pass/ }).click();
+    const panel = page.getByRole('complementary', { name: 'Rendering diagnostics' });
+    await expect(panel.getByText(/webgl2-instanced/).first()).toBeVisible({ timeout: 90_000 });
+    await expect(panel.getByText(/scene build \(corpus → scene\):/)).toBeVisible();
+    await expect(panel.getByText(/scene generation \(synthetic fixture\):/).first()).toBeVisible();
+    await useBackend(page, 'svg-dom');
+    await expect(panel.getByText(/No measurements recorded yet/)).toBeVisible();
+    await expect(panel.getByText(/webgl2-instanced \(/)).toHaveCount(0);
   });
 });

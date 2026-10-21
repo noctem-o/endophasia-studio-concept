@@ -19,7 +19,7 @@ Colour is a scarce resource.
 | **Hue: attention / fault** | amber = degraded, partial, differs; red = error, mismatch, rejection | success |
 | **Hue: structure (lineage graph only)** | sage = replay; violet = simulated projection (the scene marks it derived); neutral greys for the other relations | evidence |
 | **Texture** | solid = recorded, dashed = proposed, hatched = simulated or synthetic, hollow = unavailable | meaning that hue already says |
-| **Shape** | every provenance class has its own: ● ◐ ◆ ◌ | |
+| **Shape** | every provenance class has its own: ● ◐ ◆ ◌. Capability status and source condition use a separate SQUARE family (plus a triangle for mismatch), so a status mark can never be read as an evidence class | |
 | **Position** | category (swimlanes), storage order, side (A / B) | |
 | **Ivory (neutral)** | selection and focus — never a hue, so selecting something never changes what it looks like | |
 
@@ -31,6 +31,7 @@ Colour is a scarce resource.
 - A simulated projection is hatched and hollow, never the weight or colour of a trial.
 - `SYNTHETIC DATA` is a hatched neutral tag — texture, not an evidence hue.
 - A "declared" or "observed" mark is drawn only when evidence of that class backs it.
+- Selection never erases what a node is: a selected simulated projection keeps its hollow tinted fill and dashed outline. Ivory is also kept off promotion state: an authorised or promoted gate is not ivory, because ivory means "selected".
 - Pass rates are intervals with the denominator beside them; a missing result is hatched, never an empty bar.
 
 ## Constraints from the renderers

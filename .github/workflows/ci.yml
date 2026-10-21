@@ -25,6 +25,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # Shipped dependencies only. The devDependency advisories (braces/chokidar via Tailwind 3's build-time tooling) never reach the bundle; clearing them needs the Tailwind 4 migration, which is out of scope.
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
