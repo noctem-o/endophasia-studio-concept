@@ -128,3 +128,12 @@ describe('session statistics', () => {
     }
   });
 });
+
+describe('the methodology text claims no more than the method does', () => {
+  it('describes an exact match as agreement on kind, tool and the compared fields only, and never as "the same recorded action"', () => {
+    const text = ALIGNMENT_METHODOLOGY.phases.map((p) => p.rule).join(' ');
+    expect(text).toMatch(/EXACT/);
+    expect(text).toMatch(/Nothing else is compared/);
+    expect(text).not.toMatch(/same recorded action|same recorded arguments|\bMATCHED\b/);
+  });
+});

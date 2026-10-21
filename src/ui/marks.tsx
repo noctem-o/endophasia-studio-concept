@@ -93,21 +93,26 @@ export function StatusMark({ status, showOk = false }: { status: EventStatus; sh
 
 // ─── Capabilities and sources ────────────────────────────────────────────────
 
+/**
+ * Capability status and source condition are drawn as SQUARES (and a triangle for a mismatch), a different family from provenance,
+ * which is circles and a diamond. They share rows and screens with provenance marks (the declared/observed columns, the evidence
+ * stack), so a filled disc must mean OBSERVED and nothing else, and a half disc REPORTED and nothing else.
+ */
 export function CapabilityGlyph({ status, size = 12, className = '' }: { status: CapabilityStatus; size?: number; className?: string }) {
   const m = capabilityMeta[status];
   return (
     <svg width={size} height={size} viewBox="0 0 12 12" role="img" aria-label={m.label} className={`shrink-0 ${m.text} ${className}`}>
       <title>{`${m.label} — ${m.desc}`}</title>
-      {status === 'admitted' && <circle cx="6" cy="6" r="4.4" fill="currentColor" />}
+      {status === 'admitted' && <rect x="2" y="2" width="8" height="8" rx="1.4" fill="currentColor" />}
       {status === 'partially-admitted' && (
         <>
-          <circle cx="6" cy="6" r="4" fill="none" stroke="currentColor" strokeWidth="1.4" />
-          <path d="M6 2a4 4 0 0 1 0 8z" fill="currentColor" />
+          <rect x="2.6" y="2.6" width="6.8" height="6.8" rx="1.1" fill="none" stroke="currentColor" strokeWidth="1.3" />
+          <path d="M2.6 3.7a1.1 1.1 0 0 1 1.1-1.1H6v6.8H3.7a1.1 1.1 0 0 1-1.1-1.1z" fill="currentColor" />
         </>
       )}
-      {status === 'unverified' && <path d="M6 1.6 10.4 6 6 10.4 1.6 6z" fill="none" stroke="currentColor" strokeWidth="1.3" />}
+      {status === 'unverified' && <rect x="2.6" y="2.6" width="6.8" height="6.8" rx="1.1" fill="none" stroke="currentColor" strokeWidth="1.3" />}
       {status === 'mismatched' && <path d="M6 1.4 11 10.4H1z" fill="currentColor" />}
-      {status === 'unavailable' && <circle cx="6" cy="6" r="4" fill="none" stroke="currentColor" strokeWidth="1.3" strokeDasharray="2 1.7" />}
+      {status === 'unavailable' && <rect x="2.6" y="2.6" width="6.8" height="6.8" rx="1.1" fill="none" stroke="currentColor" strokeWidth="1.3" strokeDasharray="2 1.7" />}
     </svg>
   );
 }
@@ -117,13 +122,13 @@ export function SourceGlyph({ condition, size = 12 }: { condition: SourceConditi
   return (
     <svg width={size} height={size} viewBox="0 0 12 12" role="img" aria-label={m.label} className={`shrink-0 ${m.text}`}>
       <title>{`${m.label} — ${m.desc}`}</title>
-      {condition === 'readable' && <circle cx="6" cy="6" r="4.4" fill="currentColor" />}
-      {condition === 'empty' && <circle cx="6" cy="6" r="4" fill="none" stroke="currentColor" strokeWidth="1.4" />}
+      {condition === 'readable' && <rect x="2" y="2" width="8" height="8" rx="1.4" fill="currentColor" />}
+      {condition === 'empty' && <rect x="2.6" y="2.6" width="6.8" height="6.8" rx="1.1" fill="none" stroke="currentColor" strokeWidth="1.3" />}
       {condition === 'absent' && <path d="M2 6h8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />}
       {condition === 'degraded' && (
         <>
-          <circle cx="6" cy="6" r="4" fill="none" stroke="currentColor" strokeWidth="1.4" />
-          <path d="M6 2a4 4 0 0 0 0 8z" fill="currentColor" />
+          <rect x="2.6" y="2.6" width="6.8" height="6.8" rx="1.1" fill="none" stroke="currentColor" strokeWidth="1.3" />
+          <path d="M2.6 3.7a1.1 1.1 0 0 1 1.1-1.1H6v6.8H3.7a1.1 1.1 0 0 1-1.1-1.1z" fill="currentColor" />
         </>
       )}
       {condition === 'unopenable' && <path d="M2.6 2.6 9.4 9.4M9.4 2.6 2.6 9.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />}

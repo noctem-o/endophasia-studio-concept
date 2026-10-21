@@ -226,3 +226,47 @@ describe('a narrow window: the inspector is a modal, and the page shortcuts stan
     press('3'); expect(pressed('Capabilities')).toBe(true); // shortcuts are alive again: no stale modal state
   });
 });
+
+
+describe('modal surfaces and the selection', () => {
+  it('while the shortcut sheet is open, page shortcuts do not move the selection behind it, and Escape closes only the sheet', () => {
+    render(<App />);
+    act(() => { fireEvent.click(row(4)); });
+    expect(row(4).getAttribute('aria-selected')).toBe('true');
+    press('?');
+    const sheet = document.querySelector('dialog[aria-label="Keyboard shortcuts"]') as HTMLDialogElement;
+    expect(sheet.hasAttribute('open')).toBe(true);
+    press('j', {}, sheet);
+    expect(row(4).getAttribute('aria-selected')).toBe('true'); // j did not step behind the sheet
+    act(() => { sheet.removeAttribute('open'); fireEvent(sheet, new Event('close')); });
+    expect(row(4).getAttribute('aria-selected')).toBe('true'); // closing the sheet did not clear the selection
+  });
+
+  it('Escape typed in a text field does not clear the selection', () => {
+    const { getByLabelText } = render(<App />);
+    act(() => { fireEvent.click(row(4)); });
+    act(() => { fireEvent.keyDown(getByLabelText('Search events'), { key: 'Escape' }); });
+    expect(row(4).getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('a selection the filters hide is no selection: the status bar says so too', () => {
+    const { getByRole } = render(<App />);
+    act(() => { fireEvent.click(row(1)); });
+    expect(document.querySelector('footer')?.textContent).toContain('event 1 of 13');
+    act(() => { fireEvent.click(getByRole('button', { name: /^Tool/ })); });
+    expect(document.querySelector('footer')?.textContent).toContain('nothing selected');
+    expect(document.querySelector('footer')?.textContent).not.toContain('event 1 of 13');
+  });
+});
+
+describe('Capabilities: whether a cell is backed is available as text', () => {
+  it('says, to assistive technology, whether the declared and observed cells are backed by evidence', () => {
+    render(<App />);
+    press('3');
+    const grid = document.querySelector('table[aria-label="Capabilities: declared against observed"]') as HTMLElement;
+    const text = (name: string) => [...grid.querySelectorAll('tr')].find((r) => r.textContent?.includes(name))!.textContent!;
+    expect(text('artifacts.export')).toContain('No observed evidence backs this');
+    expect(text('fs.read')).toContain('Observed, backed by observed evidence');
+    expect(text('fs.read')).toContain('Declared, backed by reported evidence');
+  });
+});

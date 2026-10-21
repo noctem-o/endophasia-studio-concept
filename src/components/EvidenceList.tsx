@@ -30,7 +30,9 @@ function EvidenceRow({ item, source }: { item: EvidenceItem; source?: Source }) 
 
   return (
     <li className="relative overflow-hidden rounded-ctl border border-line bg-surface-2">
-      <span aria-hidden className={`absolute inset-y-0 left-0 w-0.5 ${m.fill}`} />
+      {item.kind === 'NA'
+        ? <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 border-l-2 border-dashed border-na" />
+        : <span aria-hidden className={`absolute inset-y-0 left-0 w-0.5 ${m.fill}`} />}
       <div className="flex items-center gap-2 py-2 pl-3.5 pr-2.5">
         <ProvTag kind={item.kind} />
         <span className="min-w-0 flex-1 text-xs font-medium text-fg-1">{item.label}</span>

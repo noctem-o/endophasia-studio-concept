@@ -30,7 +30,7 @@ export const ALIGNMENT_METHODOLOGY: AlignmentMethodology = {
   phases: [
     {
       name: 'Phase 1 — exact signature',
-      rule: 'Same event kind and tool, and identical values for the compared fields (tool, path, cmd). Classified as MATCHED — the same recorded action with the same recorded arguments.',
+      rule: 'Same event kind and tool, and identical values for the compared fields (tool, path, cmd). Classified as EXACT — kind, tool and the compared fields agree. Nothing else is compared: two exact events can still differ in status, evidence or any other field.',
     },
     {
       name: 'Phase 2 — signature match (proposed)',

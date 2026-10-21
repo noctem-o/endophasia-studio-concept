@@ -74,13 +74,13 @@ export function CapabilityMatrix({ session, selectedId, dimmed, onSelect }: {
                 </td>
                 <td role="gridcell" className="max-w-0 px-2 py-2.5">
                   <div className="flex items-start gap-2">
-                    <span className="mt-0.5 shrink-0">{b.declared.length > 0 ? <ProvGlyph kind="REP" size={11} /> : <ProvGlyph kind="NA" size={11} />}</span>
+                    <span className="mt-0.5 shrink-0"><ProvGlyph kind={b.declared.length > 0 ? 'REP' : 'NA'} size={11} /><span className="sr-only">{b.declared.length > 0 ? 'Declared, backed by reported evidence. ' : 'Declared, but no reported evidence backs it. '}</span></span>
                     <p className="line-clamp-2 text-xs leading-snug text-fg-2">{cap.declared}</p>
                   </div>
                 </td>
                 <td role="gridcell" className="max-w-0 px-2 py-2.5">
                   <div className="flex items-start gap-2">
-                    <span className="mt-0.5 shrink-0">{b.observed.length > 0 ? <ProvGlyph kind="OBS" size={11} /> : <ProvGlyph kind="NA" size={11} />}</span>
+                    <span className="mt-0.5 shrink-0"><ProvGlyph kind={b.observed.length > 0 ? 'OBS' : 'NA'} size={11} /><span className="sr-only">{b.observed.length > 0 ? 'Observed, backed by observed evidence. ' : 'No observed evidence backs this. '}</span></span>
                     <p className={`line-clamp-2 text-xs leading-snug ${b.observed.length > 0 ? 'text-fg-2' : 'text-fg-3'}`}>{cap.observed}</p>
                   </div>
                 </td>

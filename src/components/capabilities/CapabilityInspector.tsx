@@ -2,7 +2,7 @@ import type { Capability, EvidenceItem, Session } from '../../domain/types';
 import { capabilityMeta } from '../../state/meta';
 import { backing, exercisedBy } from '../../state/capabilities';
 import { Def, DefList, Section } from '../../ui/layout';
-import { CapabilityGlyph, ProvGlyph, ProvMark, StatusMark } from '../../ui/marks';
+import { CapabilityGlyph, ProvMark, StatusMark } from '../../ui/marks';
 import { EvidenceList } from '../EvidenceList';
 import { ExerciseStrip } from './CapabilityMatrix';
 
@@ -57,7 +57,7 @@ export function CapabilityInspector({ session, capability, onInspect }: {
         {capability.restrictions.length > 0 && (
           <Section title="Restrictions" note={`${capability.restrictions.length}`}>
             <ul className="space-y-1">
-              {capability.restrictions.map((r, i) => <li key={i} className="flex gap-2 text-xs leading-relaxed text-fg-2"><ProvGlyph kind="REP" size={9} className="mt-1.5" />{r}</li>)}
+              {capability.restrictions.map((r, i) => <li key={i} className="flex gap-2 text-xs leading-relaxed text-fg-2"><span aria-hidden className="mt-2 h-1 w-1 shrink-0 rounded-full bg-fg-3" />{r}</li>)}
             </ul>
           </Section>
         )}

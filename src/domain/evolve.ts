@@ -184,8 +184,8 @@ export const candidateStatusMeta: Record<CandidateStatus, { label: string; desc:
   isolated: { label: 'ISOLATED', desc: 'Experiment arms defined; variables controlled where possible.', text: 'text-fg-2', border: 'border-line-strong', bg: 'bg-transparent' },
   evaluated: { label: 'EVALUATED', desc: 'Trials ran and were judged. An evaluation result is not a promotion.', text: 'text-fg-1', border: 'border-line-strong', bg: 'bg-surface-3' },
   review: { label: 'IN REVIEW', desc: 'Under human review; comparisons inspected for validity.', text: 'text-attn', border: 'border-attn/50', bg: 'bg-attn/10' },
-  authorised: { label: 'AUTHORISED', desc: 'An authority decision exists, bound to a specific record. Authorisation is recorded, execution still separate.', text: 'text-fg-1', border: 'border-select/60', bg: 'bg-surface-3' },
-  promoted: { label: 'PROMOTED', desc: 'A recorded promotion decision replaced the baseline reference.', text: 'text-fg-1', border: 'border-select/60', bg: 'bg-surface-3' },
+  authorised: { label: 'AUTHORISED', desc: 'An authority decision exists, bound to a specific record. Authorisation is recorded, execution still separate.', text: 'text-fg-1', border: 'border-fg-2', bg: 'bg-surface-3' },
+  promoted: { label: 'PROMOTED', desc: 'A recorded promotion decision replaced the baseline reference.', text: 'text-fg-1', border: 'border-fg-2', bg: 'bg-surface-3' },
   rejected: { label: 'REJECTED', desc: 'A recorded decision not to adopt, with its reason.', text: 'text-fault', border: 'border-fault/50', bg: 'bg-fault/10' },
   withdrawn: { label: 'WITHDRAWN', desc: 'Withdrawn by its proposer before evaluation completed.', text: 'text-fg-3', border: 'border-line', bg: 'bg-transparent' },
 };

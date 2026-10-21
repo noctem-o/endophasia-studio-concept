@@ -8,7 +8,7 @@ import { IntervalBar } from '../../ui/viz';
 import { InspectorColumn } from '../InspectorColumn';
 import { Block, DossierBody, DossierHeader, ListItem, ListPane, Split } from './LabLayout';
 import { diffCandidates } from './candidateDiff';
-import { outcomeQualification } from './evolveMeta';
+import { isProjectionArm, outcomeQualification } from './evolveMeta';
 
 /** The gates a candidate can pass, in order. Each is a SEPARATE recorded decision. */
 const GATES: { stage: PromotionStage; label: string }[] = [
@@ -38,7 +38,7 @@ function Gate({ label, state, selected, onClick }: { label: string; state: GateS
       <span
         aria-hidden
         className={`relative flex h-6 w-6 items-center justify-center rounded-full border ${
-          state === 'done' ? 'border-select bg-select text-surface-0'
+          state === 'done' ? 'border-fg-2 bg-fg-1 text-surface-0'
           : state === 'failed' ? 'border-fault bg-fault/15 text-fault'
           : state === 'unavailable' ? 'hatch border-dashed border-na bg-surface-1 text-na'
           : 'border-dashed border-line-strong text-fg-4'
@@ -218,6 +218,15 @@ function EvaluationCard({ corpus, candidate, expId, onOpenExperiment }: { corpus
         <>
           <div className="mt-3 grid gap-4 md:grid-cols-2">
             {[aId, bId].map((id) => {
+              if (isProjectionArm(corpus, id)) {
+                // A projection has no pass rate; it must never appear on a results axis, not even as "no verdicts".
+                return (
+                  <div key={id} className="hatch-der-faint rounded-ctl border border-der/40 p-2.5">
+                    <div className="text-xs text-fg-2">{label(id)} <span className="font-mono text-2xs text-der">projection</span></div>
+                    <p className="mt-1 text-xs leading-relaxed text-fg-1">A projection has no pass rate and is never compared with results.</p>
+                  </div>
+                );
+              }
               const cell = cellStats(trials, id);
               const rate = 'unavailable' in cell.passRate ? null : cell.passRate;
               return (
