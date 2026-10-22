@@ -139,6 +139,8 @@ describe('fg-4 is for graphics, never for words', () => {
     'src/components/evolve/CandidatesSection.tsx': 1, // the dashed ring of a gate with no record (labelled "no record")
     'src/components/evolve/CheckpointsSection.tsx': 1, // the hollow square of an unsupported continuation (labelled)
     'src/components/observe/TrajectoryOverview.tsx': 1, // the marker of an event with no evidence items (shape, tooltip)
+    'src/components/observe/ProjectionNotice.tsx': 1, // the unreadable-projection icon, beside its own explanatory sentence
+    'src/ui/states.tsx': 3, // the empty-store, unreadable-projection and unsupported-detail icons, each beside its own explanation
   };
 
   it('is used as text colour only where it was reviewed', () => {
