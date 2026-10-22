@@ -3,6 +3,7 @@ import type { StudioState } from '../state/studio';
 import { isPlainShortcut } from '../state/keys';
 import { categoryCounts, evidenceMix, filterEvents, matchesFilters, NO_FILTERS, stepVisible } from '../state/observe';
 import type { EventFilters } from '../state/observe';
+import { useSessionStore } from '../state/sessionStore';
 import { InspectorColumn } from '../components/InspectorColumn';
 import { SessionSwitcher } from '../components/SessionSwitcher';
 import { WorkspaceBar } from '../components/AppShell';
@@ -12,8 +13,15 @@ import { FilterBar } from '../components/observe/FilterBar';
 import { EventTable } from '../components/observe/EventTable';
 import { EventInspector } from '../components/observe/EventInspector';
 import { SessionBrief } from '../components/observe/SessionBrief';
+import { ProjectionBanner, UnsupportedProjectionState, type UnreadableRecord } from '../components/observe/ProjectionNotice';
+import { EmptyStoreState, LoadFailureState, LoadingState } from '../ui/states';
 
 export function ObservationWorkspace({ studio }: { studio: StudioState }) {
+  // The store seam: today it resolves the bundled fixtures after a tick (so the
+  // loading state is real), tomorrow a production loader implements the same
+  // contract and every state below keeps working unchanged.
+  const store = useSessionStore();
+
   const session = studio.session;
   const [filters, setFilters] = useState<EventFilters>(NO_FILTERS);
   const [axis, setAxis] = useState<OverviewAxis>('order');
@@ -72,17 +80,36 @@ export function ObservationWorkspace({ studio }: { studio: StudioState }) {
 
   const minutes = session.durationMs / 1000;
 
+  // The store owns presence (loading / empty / failure / unreadable projections); studio stays the owner of selection and
+  // cross-workspace navigation while the demonstration fixtures are the loader. A production build hands both jobs to the store.
+  if (store.status === 'loading') return <div className="min-h-0 flex-1"><LoadingState what="recorded sessions" /></div>;
+  if (store.status === 'empty') return <div className="min-h-0 flex-1"><EmptyStoreState /></div>;
+  if (store.status === 'failure') return <div className="min-h-0 flex-1"><LoadFailureState what="recorded sessions" detail={store.failureDetail} onRetry={store.retry} /></div>;
+  if (store.status === 'unsupported') {
+    const u: UnreadableRecord | undefined = store.unsupported[0];
+    return <div className="min-h-0 flex-1"><UnsupportedProjectionState version={u?.projection ?? 'unknown'} supported={PROJECTION_WHITELIST} /></div>;
+  }
+
+  const pickSession = (id: string) => {
+    store.selectSession(id);
+    studio.selectSession(id);
+  };
+
   return (
     <div className="flex h-full min-h-0">
       <div className="flex min-w-0 flex-1 flex-col">
         <WorkspaceBar>
-          <SessionSwitcher sessions={studio.sessions} value={session.id} onChange={studio.selectSession} />
+          <SessionSwitcher sessions={store.sessions} value={store.selectedId ?? session.id} onChange={pickSession} />
           <dl className="hidden items-center gap-x-5 font-mono text-2xs text-fg-3 xl:flex">
             <div className="flex gap-1.5"><dt>duration</dt><dd className="text-fg-2 tnum">{minutes.toFixed(1)} s</dd></div>
             <div className="flex gap-1.5"><dt>runtime</dt><dd className="text-fg-2">{session.runtime.runtime} {session.runtime.runtimeVersion}</dd></div>
             <div className="flex gap-1.5"><dt>harness</dt><dd className="text-fg-2">{session.runtime.harness}</dd></div>
           </dl>
         </WorkspaceBar>
+
+        {store.unsupported.length > 0 && (
+          <ProjectionBanner unsupported={store.unsupported} supported={PROJECTION_WHITELIST} />
+        )}
 
         <TrajectoryOverview
           session={session}
@@ -139,3 +166,5 @@ export function ObservationWorkspace({ studio }: { studio: StudioState }) {
     </div>
   );
 }
+
+const PROJECTION_WHITELIST: readonly string[] = ['v1'];

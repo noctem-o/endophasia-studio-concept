@@ -1,9 +1,9 @@
-import type { Session, TrajectoryEvent } from '../../domain/types';
+import type { Session, TrajectoryEvent, SourceCondition } from '../../domain/types';
 import { categoryMeta, sessionStateMeta } from '../../state/meta';
 import { evidenceMix, formatOffset } from '../../state/observe';
 import { Kbd } from '../../ui/controls';
 import { Def, DefList, Section } from '../../ui/layout';
-import { SourceGlyph, StatusMark } from '../../ui/marks';
+import { SourceGlyph, SourceConditionTag, StatusMark } from '../../ui/marks';
 import { ProvenanceMix } from '../../ui/viz';
 
 /** What the inspector shows before anything is selected: the session as a whole, and where to look first. All of it is a tally or a
@@ -13,6 +13,7 @@ export function SessionBrief({ session, onSelect }: { session: Session; onSelect
   const mix = evidenceMix(session.events);
   const deviations = session.events.filter((e) => e.status !== 'ok');
   const worrying = session.sources.filter((s) => s.condition !== 'readable');
+  const degradedSources = session.sources.filter((s: { condition: SourceCondition }) => s.condition === 'degraded');
   const minutes = session.durationMs / 1000;
 
   return (
@@ -56,12 +57,24 @@ export function SessionBrief({ session, onSelect }: { session: Session; onSelect
       </Section>
 
       <Section title="Sources" note={worrying.length === 0 ? 'all readable' : `${worrying.length} not readable`}>
+        {degradedSources.length > 0 && (
+          <div className="mb-2 space-y-1.5">
+            {degradedSources.map((s) => (
+              <div key={s.id} className="rounded-ctl border border-attn/40 bg-attn/10 px-3 py-2">
+                <div className="flex items-center gap-2 font-mono text-2xs font-medium uppercase tracking-[0.12em] text-attn">
+                  source degraded — {s.name}
+                </div>
+                <p className="mt-1 text-xs leading-relaxed text-fg-2">{s.note}</p>
+              </div>
+            ))}
+          </div>
+        )}
         <ul className="space-y-1">
           {session.sources.map((s) => (
-            <li key={s.id} className="flex items-center gap-2 text-xs text-fg-2" title={s.note}>
+            <li key={s.id} className={`flex items-center gap-2 text-xs ${s.condition === 'unopenable' ? 'text-fault' : 'text-fg-2'}`} title={s.note}>
               <SourceGlyph condition={s.condition} size={11} />
               <span className="min-w-0 flex-1 truncate">{s.name}</span>
-              <span className="font-mono text-2xs text-fg-3">{s.condition}</span>
+              <SourceConditionTag condition={s.condition} />
             </li>
           ))}
         </ul>
