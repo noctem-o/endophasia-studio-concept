@@ -79,7 +79,10 @@ Caveat: the harness script was written for Playwright's own preview-server flow,
 this sandbox cannot run (`vite` as a long-lived server is blocked). The captures above
 were taken from the production build served by a static file server, so they show the
 real built app; the script itself has not been exercised end-to-end and may need its
-server-start step adjusted before CI use.
+server-start step adjusted before CI use. In this pass the PNGs also live only in the
+working workspace: the available push tooling commits UTF-8 text only, so binary
+screenshot files could not be committed to the branch — re-capture with the harness or
+copy the PNGs in when the branch lands on a machine with git access.
 
 ## Synthetic-data assumptions
 
